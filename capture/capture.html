@@ -1,0 +1,125 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Continuum device capture</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 760px; margin: 0 auto; padding: 24px; }
+  button { font: inherit; padding: 6px 12px; }
+  pre, textarea { width: 100%; box-sizing: border-box; background: rgb(128 128 128 / .15); color: inherit; border: 0; padding: 8px; font-size: 13px; white-space: pre-wrap; }
+  pre { min-height: 8em; }
+</style>
+<h1>Continuum: on-device capture</h1>
+<p>Runs Chrome's built-in model (Gemini Nano) through a short script and records how it behaves, including errors it is made to cause. Nothing is sent anywhere: you copy the report yourself. It holds your Chrome version, OS, CPU count and memory tier, and no personal data.</p>
+<p><button id="run">Run capture</button> <button id="copy" disabled>Copy report</button> <button id="save" disabled>Save report.json</button></p>
+<pre id="log"></pre>
+<textarea id="report" rows="12" readonly placeholder="The report appears here."></textarea>
+<script>
+const $ = (id) => document.getElementById(id);
+const log = (s) => ($('log').textContent += s + '\n');
+const OPTS = { expectedInputs: [{ type: 'text', languages: ['en'] }], expectedOutputs: [{ type: 'text', languages: ['en'] }] };
+const R = { kit: 1, startedAt: new Date().toISOString(), env: {}, availability: {}, baseline: {}, forced: {} };
+
+const shape = (e) => ({
+  name: e?.name, message: String(e?.message ?? e).slice(0, 300), code: e?.code, ctor: e?.constructor?.name,
+  domException: e instanceof DOMException, keys: Object.getOwnPropertyNames(e ?? {}),
+});
+const within = (p, ms) => {
+  let t;
+  const late = new Promise((_, no) => (t = setTimeout(() => no(Object.assign(new Error(`kit timeout after ${ms}ms`), { name: 'KitTimeout' })), ms)));
+  return Promise.race([p, late]).finally(() => clearTimeout(t));
+};
+async function attempt(label, fn, ms = 60000) {
+  const t = performance.now();
+  try { return { ok: true, ms: Math.round(performance.now() - t), value: await within(fn(), ms) }; }
+  catch (e) { log(`  ${label}: ${e?.name}: ${String(e?.message).slice(0, 80)}`); return { ok: false, ms: Math.round(performance.now() - t), error: shape(e) }; }
+}
+const median = (a) => (a.length ? [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)] : null);
+
+async function download(LM, opts) {
+  const events = [], t0 = performance.now();
+  let last = t0, maxGap = 0, stall;
+  const activeAtStart = navigator.userActivation?.isActive;
+  const outcome = await new Promise((done) => {
+    const arm = () => (clearTimeout(stall), (stall = setTimeout(() => done('stalled'), 180000)));
+    arm();
+    LM.create({ ...opts, monitor(m) {
+      m.addEventListener('downloadprogress', (e) => {
+        const now = performance.now();
+        maxGap = Math.max(maxGap, now - last); last = now;
+        if (events.length < 300) events.push([Math.round(now - t0), +Number(e.loaded).toFixed(3)]);
+        arm();
+      });
+    } }).then((s) => (s.destroy?.(), done('ready')), (e) => done('failed: ' + e?.name));
+  });
+  clearTimeout(stall);
+  return { outcome, totalMs: Math.round(performance.now() - t0), maxGapMs: Math.round(maxGap), events, activeAtStart };
+}
+
+async function run() {
+  $('run').disabled = true;
+  try {
+    R.env = { ua: navigator.userAgent, secure: self.isSecureContext, origin: location.origin, hasLanguageModel: 'LanguageModel' in self,
+      cpus: navigator.hardwareConcurrency, deviceMemoryGB: navigator.deviceMemory };
+    log('1/5 environment');
+    if (!R.env.hasLanguageModel) return void log('LanguageModel is not defined. Enable both flags (see README), relaunch Chrome, and open this page from http://localhost.');
+    const LM = self.LanguageModel;
+
+    log('2/5 availability');
+    R.availability.bare = await attempt('availability()', () => LM.availability());
+    R.availability.withLanguages = await attempt('availability(opts)', () => LM.availability(OPTS));
+    R.availability.params = await attempt('params()', async () => (LM.params ? await LM.params() : 'n/a'));
+    const states = [R.availability.bare.value, R.availability.withLanguages.value];
+    log('  ' + states.join(' / '));
+    if (states.every((s) => !s || s === 'unavailable'))
+      return void log('Not eligible on this machine. Open chrome://on-device-internals, screenshot the Model Status tab, and send it with this report.');
+    const opts = states[1] && states[1] !== 'unavailable' ? OPTS : {};
+
+    if (states.some((s) => s === 'downloadable' || s === 'downloading')) {
+      log('3/5 downloading the model (large; keep this tab open)');
+      R.download = await download(LM, opts);
+      log('  ' + R.download.outcome);
+    } else log('3/5 model already present');
+
+    log('4/5 baseline inference');
+    let S;
+    R.baseline.create = await attempt('create()', async () => ((S = await LM.create(opts)), 'ok'), 120000);
+    if (R.baseline.create.ok) {
+      R.baseline.prompts = [];
+      for (let i = 0; i < 8; i++) R.baseline.prompts.push(await attempt('prompt', async () => (await S.prompt('Reply with the single word: ok')).length, 120000));
+      const ok = R.baseline.prompts.filter((p) => p.ok).map((p) => p.ms);
+      R.baseline.summary = { ok: ok.length, failed: 8 - ok.length, firstMs: R.baseline.prompts[0].ms, medianMs: median(ok) };
+      S.destroy?.();
+      R.probe = [];
+      for (let i = 0; i < 5; i++) R.probe.push(await attempt('probe', async () => { const s = await LM.create(opts); try { await s.prompt('ok'); } finally { s.destroy?.(); } }));
+      R.probeMedianMs = median(R.probe.filter((p) => p.ok).map((p) => p.ms));
+    }
+    R.availableButFailed = states.includes('available') && (!R.baseline.create.ok || R.baseline.prompts.some((p) => !p.ok));
+
+    log('5/5 forced failures (errors here are expected)');
+    const withSession = (fn) => async () => { const s = await LM.create(opts); try { return await fn(s); } finally { s.destroy?.(); } };
+    const F = R.forced;
+    F.oversizedPrompt = await attempt('oversized', withSession(async (s) => (await s.prompt('word '.repeat(600000))).length));
+    F.abortBefore = await attempt('abortBefore', withSession((s) => { const ac = new AbortController(); ac.abort(); return s.prompt('hi', { signal: ac.signal }); }));
+    F.abortMidFlight = await attempt('abortMidFlight', withSession((s) => { const ac = new AbortController(); const p = s.prompt('Write 400 words about the sea.', { signal: ac.signal }); setTimeout(() => ac.abort(), 80); return p; }));
+    F.useAfterDestroy = await attempt('useAfterDestroy', async () => { const s = await LM.create(opts); s.destroy(); return s.prompt('hi'); });
+    F.badTemperature = await attempt('badTemperature', async () => { (await LM.create({ ...opts, temperature: 99, topK: 99999 })).destroy?.(); });
+    F.unsupportedLanguage = await attempt('unsupportedLanguage', async () => { (await LM.create({ expectedInputs: [{ type: 'text', languages: ['xx'] }] })).destroy?.(); });
+    F.parallel = await attempt('parallel', withSession((s) => Promise.allSettled([1, 2, 3].map(() => s.prompt('Reply with the single word: ok'))).then((r) => r.map((x) => x.status === 'fulfilled' ? 'ok' : shape(x.reason)))));
+  } catch (e) {
+    R.kitError = shape(e); log('Kit error: ' + e?.message);
+  } finally {
+    R.finishedAt = new Date().toISOString();
+    $('report').value = JSON.stringify(R, null, 2);
+    $('copy').disabled = $('save').disabled = $('run').disabled = false;
+    log('Done. Copy or save the report and send it back.');
+  }
+}
+
+$('run').onclick = run;
+$('copy').onclick = async () => { try { await navigator.clipboard.writeText($('report').value); } catch { $('report').select(); document.execCommand('copy'); } };
+$('save').onclick = () => {
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([$('report').value], { type: 'application/json' })), download: 'continuum-capture.json' });
+  a.click();
+};
+</script>
