@@ -1,1 +1,46 @@
-{ "type": "module" }
+{
+  "name": "continuum",
+  "version": "0.0.0",
+  "description": "Durable, resumable multi-stage execution for hybrid on-device/cloud AI in the browser.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./firebase": {
+      "types": "./dist/firebase.d.ts",
+      "default": "./dist/firebase.js"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "prepack": "rm -rf dist && npm run build"
+  },
+  "devDependencies": {
+    "@firebase/ai": "^2.16.0",
+    "@firebase/app": "^0.16.2",
+    "fake-indexeddb": "^6.2.8",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  },
+  "peerDependencies": {
+    "@firebase/ai": ">=13"
+  },
+  "peerDependenciesMeta": {
+    "@firebase/ai": {
+      "optional": true
+    }
+  }
+}
