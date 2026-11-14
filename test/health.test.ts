@@ -60,3 +60,14 @@ it('routes to the device only while it looks healthy', async () => {
   expect(await route([])).toBe('cloud');
   expect(defaultRoute([])).toBe('device'); // the log alone would not have known
 });
+
+it('retries a stalled download a bounded number of times', async () => {
+  const { h, sim } = rig({ availability: 'downloadable', prompt: 'ok', download: 'stall' });
+  setTimeout(() => (sim.download = 'ok'), 15); // the network recovers between the two attempts
+  expect(await h.warm(2)).toBe('ready');
+  expect(sim.creates).toBe(2);
+
+  const gone = rig({ availability: 'downloadable', prompt: 'ok', download: 'stall' });
+  expect(await gone.h.warm(1)).toBe('stuck');
+  expect(gone.sim.creates).toBe(1);
+});

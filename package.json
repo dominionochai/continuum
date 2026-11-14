@@ -26,13 +26,18 @@
     "build": "tsc -p tsconfig.build.json",
     "check": "tsc --noEmit",
     "test": "vitest run",
-    "prepack": "rm -rf dist && npm run build"
+    "prepack": "rm -rf dist && npm run build",
+    "demo": "vite demo",
+    "demo:build": "vite build demo --base ./ --emptyOutDir"
   },
   "devDependencies": {
     "@firebase/ai": "^2.16.0",
     "@firebase/app": "^0.16.2",
+    "@types/node": "^26.6.6",
     "fake-indexeddb": "^6.2.8",
+    "jsdom": "^31.0.1",
     "typescript": "^7.0.2",
+    "vite": "^8.3.8",
     "vitest": "^5.1.0"
   },
   "peerDependencies": {

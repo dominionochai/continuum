@@ -49,6 +49,22 @@ export function health(lm: LM | undefined, { now = Date.now, ttl = 60_000, probe
     }
   };
 
+  type Warm = 'ready' | 'stuck' | 'failed';
+  const warmOnce = (): Promise<Warm> =>
+    !lm ? Promise.resolve('failed') : new Promise<Warm>(done => {
+      let t: ReturnType<typeof setTimeout>;
+      const arm = () => (clearTimeout(t), (t = setTimeout(() => done('stuck'), stallMs)));
+      arm();
+      lm.create({ monitor: (m: EventTarget) => m.addEventListener('downloadprogress', arm) }).then(
+        s => (s.destroy?.(), clearTimeout(t), done('ready')),
+        e => (clearTimeout(t), fail(e, 'download failed'), done('failed')),
+      );
+    }).then(r => {
+      if (r === 'stuck') fail(new Error('download stalled'), 'download stalled');
+      if (r === 'ready') cur = { ...cur, expires: 0 }; // re-check next time, so work returns to the device
+      return r;
+    });
+
   return {
     /** Current assessment; re-checks only after it expires. */
     assess: async () => (now() < cur.expires ? cur : check()),
@@ -56,21 +72,12 @@ export function health(lm: LM | undefined, { now = Date.now, ttl = 60_000, probe
     state: () => cur,
     /** Feed real inference failures in, so the next stage doesn't repeat a doomed device attempt. */
     record: (e: unknown, source: Source) => void (source === 'device' && fail(e, 'inference failed')),
-    /** Trigger the model download and watch it. `stuck` = no progress event for `stallMs`. */
-    warm: (): Promise<'ready' | 'stuck' | 'failed'> =>
-      !lm ? Promise.resolve('failed') : new Promise<'ready' | 'stuck' | 'failed'>(done => {
-        let t: ReturnType<typeof setTimeout>;
-        const arm = () => (clearTimeout(t), (t = setTimeout(() => done('stuck'), stallMs)));
-        arm();
-        lm.create({ monitor: (m: EventTarget) => m.addEventListener('downloadprogress', arm) }).then(
-          s => (s.destroy?.(), done('ready')),
-          e => (fail(e, 'download failed'), done('failed')),
-        );
-      }).then(r => {
-        if (r === 'stuck') fail(new Error('download stalled'), 'download stalled');
-        if (r === 'ready') cur = { ...cur, expires: 0 }; // re-check next time, so work returns to the device
-        return r;
-      }),
+    /** Trigger the model download and watch it, up to `tries` attempts. `stuck` = no progress event for `stallMs`. */
+    warm: async (tries = 2) => {
+      let r: Warm = 'failed';
+      for (let i = 0; i < tries && r !== 'ready'; i++) r = await warmOnce();
+      return r;
+    },
   };
 }
 

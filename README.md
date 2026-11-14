@@ -1,38 +1,62 @@
 # Continuum
 
-Durable, resumable multi-stage execution for hybrid (on-device + cloud) AI in the browser.
+Durable, resumable multi-stage execution for hybrid (on-device + cloud) AI in the browser, on top of
+Firebase AI Logic.
 
-A task is a list of stages. Each stage's result is checkpointed to IndexedDB. If the page reloads or the
-device model fails mid-task, `run` picks up where it stopped: finished stages are never re-run, and the
-remaining work goes to the cloud.
+Stock `PREFER_ON_DEVICE` checks that the on-device model is *available*, then calls it with no fallback. If
+inference then throws, the error reaches your app. Continuum probes the device, falls back per attempt,
+and checkpoints every stage, so a reload or a crash resumes instead of starting over.
 
 ```ts
-import { runner, idbStore } from 'continuum';
+import { runner, idbStore, health, quota, policy, observe } from 'continuum';
+import { firebaseGenerate } from 'continuum/firebase'; // needs @firebase/ai >= 13
+
+const gen = firebaseGenerate(ai);                        // `ai` from getAI(...)
+const h = health(window.LanguageModel), q = quota();
 
 const tasks = runner(idbStore(), [
-  ['extract',   async ({ input, source }) => /* call your model; `source` is 'device' | 'cloud' */ ],
-  ['summarize', async ({ done })          => /* `done.extract` is the earlier result */ ],
-]);
+  ['extract',   async c => gen(c.source, `Extract the facts: ${c.input}`)],
+  ['summarize', async c => gen(c.source, `Summarize: ${c.done.extract.text}`)],
+], { route: policy(h, { quota: q }), ...observe(h, q) });
 
-await tasks.run('doc-42', input); // starts the task, or resumes it after a reload
+await tasks.run('doc-42', text); // starts the task, or resumes it after a reload
 ```
+
+## What each part does
+
+- **`runner`**: stages are checkpointed to IndexedDB. Finished stages are never re-run.
+- **`health`**: a probe (a tiny real inference) instead of trusting `available`. Assessments expire, and a
+  recurring failure is distrusted for longer each time. `warm()` detects stalled model downloads.
+- **`policy`** + **`quota`**: pick the source per attempt. A cloud 429 opens a window that honors the
+  server's retry hint and doubles on repeats. If neither source is usable it throws `AllRoutesBlocked`
+  instead of making an attempt that is bound to fail.
+- **`classify`**: errors become `quota | network | timeout | availability | config | inference`. Only
+  transient kinds are retried (3 tries, backoff).
+- **`spans`, `recoveries`, `format`**: a trace of every attempt, labeled `observed` or `inferred`.
 
 ## Guarantees
 
-- **At-least-once per stage.** A crash between a stage finishing and its checkpoint re-runs that stage.
-  Make side effects idempotent using `ctx.key` (`taskId/stage`), which is stable across attempts.
-- **One run per task across tabs** (Web Locks). Pass `lock` to override.
-- **One lost device attempt moves the rest of the task to cloud.** Pass `route` to change the policy.
+- **At-least-once per stage.** A crash between a stage finishing and its checkpoint re-runs that stage. Use
+  `ctx.key` (`taskId/stage`) to make side effects idempotent.
+- One run per task across tabs (Web Locks).
+- One lost device attempt sends the rest of the task to the cloud. Override with `route`.
 
-## Traces
+## Verification status
 
-`spans(log)`, `recoveries(log)` and `format(log)` derive a timeline from the task log. Each span is labeled
-`observed` or `inferred`. `source` is the route requested, not confirmed by Firebase.
+- Tested (41 tests) against the real `@firebase/ai` 13.3 **browser build** with a **simulated** device
+  (`fakeLanguageModel`) and a stubbed network. The simulated device reports `available`, then fails: stock
+  Firebase surfaces the error, Continuum completes via cloud.
+- Cloud error shapes (status codes, retry hints) come from the SDK's own source.
+- **Not yet verified:** real Gemini Nano. Real on-device error shapes are unknown, so device errors fall into
+  `inference`, which is the safe default. Real-browser IndexedDB and Web Locks are untested.
+- The SDK's Node build never wires up the on-device adapter. Test hybrid mode against the browser build.
 
-## Status
+## Demo
 
-Not yet implemented: the Firebase AI Logic adapter, health probes, and error classification.
+`npm run demo` serves a two-column page (Firebase alone vs Continuum). It simulates the device unless Chrome
+exposes a real `LanguageModel`, and says so in a banner. Add `?sim` to force simulation. For real cloud calls
+set `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_PROJECT_ID` and `VITE_FIREBASE_APP_ID`.
 
-`prototype/` is the earlier single-file prototype, kept for reference.
+`prototype/` holds the earlier single-file prototype, kept for reference.
 
 License: Apache-2.0
