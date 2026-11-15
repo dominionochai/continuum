@@ -18,6 +18,7 @@ if (simulated) {
   $('controls').hidden = false;
   $('device').onchange = e => (sim.prompt = (e.target as HTMLSelectElement).value as Sim['prompt']);
 }
+if (!simulated) $('force-wrap').hidden = false;
 $('mode').textContent = simulated
   ? 'SIMULATED: fake on-device model and stubbed network. This is not a Gemini Nano run.'
   : 'Real on-device model (Chrome LanguageModel).';
@@ -28,10 +29,21 @@ const ai = getAI(
 );
 const out = (id: string, text: string) => ($(id).textContent = text);
 
+// With "force" on, the document is bigger than the on-device input quota: a real failure, no simulation.
+// It stays small for the cloud (tens of thousands of tokens).
+let big: Promise<string> | undefined;
+const sized = async () => {
+  const s = await (window as any).LanguageModel.create().catch(() => undefined);
+  const quota: number = s?.inputQuota ?? 8000;
+  s?.destroy?.();
+  return 'word '.repeat(quota * 2);
+};
+const doc = async () => (($('force') as HTMLInputElement).checked ? await (big ??= sized()) : DOC);
+
 $('run-stock').onclick = async () => {
   out('stock-out', 'running...');
   try {
-    const { response } = await getGenerativeModel(ai, { mode: InferenceMode.PREFER_ON_DEVICE }).generateContent(`Extract the key facts: ${DOC}`);
+    const { response } = await getGenerativeModel(ai, { mode: InferenceMode.PREFER_ON_DEVICE }).generateContent(`Extract the key facts: ${await doc()}`);
     out('stock-out', `OK via ${response.inferenceSource}\n${response.text()}`);
   } catch (e: any) {
     out('stock-out', `ERROR\n${e.message}`);
@@ -44,7 +56,7 @@ const store = idbStore('continuum-demo');
 const tasks = runner(
   store,
   [
-    ['extract', async c => gen(c.source, `Extract the key facts: ${DOC}`)],
+    ['extract', async c => gen(c.source, `Extract the key facts: ${await doc()}`)],
     ['summarize', async c => {
       if ((($('slow')) as HTMLInputElement).checked) await sleep(3000); // time to reload mid-task
       return gen(c.source, `Summarize: ${(c.done.extract as { text: string }).text}`);

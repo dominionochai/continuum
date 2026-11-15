@@ -22,3 +22,8 @@ The report is copied by hand; nothing is uploaded.
 
 If it stops at "Not eligible", open `chrome://on-device-internals`, screenshot the **Model Status** tab, and
 send that along with the report.
+
+## After the report comes back
+
+`npm run analyze -- report.json` prints a summary (eligibility, download, latency, probe cost, whether the
+model reported available and then failed) and how Continuum's classifier handles each real error.

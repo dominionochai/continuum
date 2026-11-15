@@ -85,6 +85,7 @@ async function run() {
     let S;
     R.baseline.create = await attempt('create()', async () => ((S = await LM.create(opts)), 'ok'), 120000);
     if (R.baseline.create.ok) {
+      R.baseline.session = { inputQuota: S.inputQuota, inputUsage: S.inputUsage };
       R.baseline.prompts = [];
       for (let i = 0; i < 8; i++) R.baseline.prompts.push(await attempt('prompt', async () => (await S.prompt('Reply with the single word: ok')).length, 120000));
       const ok = R.baseline.prompts.filter((p) => p.ok).map((p) => p.ms);

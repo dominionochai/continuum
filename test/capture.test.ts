@@ -21,6 +21,8 @@ function fakeNano(state: string, opts: { events?: number[] } = {}) {
         for (const loaded of opts.events ?? []) m.dispatchEvent(Object.assign(new Event('downloadprogress'), { loaded }));
       }
       const s = {
+        inputQuota: 8000,
+        inputUsage: 0,
         prompt: async (text: string, { signal }: { signal?: AbortSignal } = {}) => {
           if (destroyed.has(s)) throw new DOMException('session destroyed', 'InvalidStateError');
           if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
@@ -53,6 +55,7 @@ it('records real error shapes from every forced failure, and finds no gap on a h
   const r = await runKit(fakeNano('available'));
   expect(r.availability.bare.value).toBe('available');
   expect(r.baseline.summary).toMatchObject({ ok: 8, failed: 0 });
+  expect(r.baseline.session).toEqual({ inputQuota: 8000, inputUsage: 0 });
   expect(r.probe.every((p: any) => p.ok)).toBe(true);
   const name = (k: string) => r.forced[k].error?.name;
   expect([name('oversizedPrompt'), name('abortBefore'), name('abortMidFlight'), name('useAfterDestroy'), name('unsupportedLanguage'), name('badTemperature')])

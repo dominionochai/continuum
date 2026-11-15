@@ -28,7 +28,8 @@
     "test": "vitest run",
     "prepack": "rm -rf dist && npm run build",
     "demo": "vite demo",
-    "demo:build": "vite build demo --base ./ --emptyOutDir"
+    "demo:build": "vite build demo --base ./ --emptyOutDir",
+    "analyze": "npm run -s build && node capture/analyze.mjs"
   },
   "devDependencies": {
     "@firebase/ai": "^2.16.0",

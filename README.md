@@ -54,7 +54,8 @@ await tasks.run('doc-42', text); // starts the task, or resumes it after a reloa
 ## Demo
 
 `npm run demo` serves a two-column page (Firebase alone vs Continuum). It simulates the device unless Chrome
-exposes a real `LanguageModel`, and says so in a banner. Add `?sim` to force simulation. For real cloud calls
+exposes a real `LanguageModel`, and says so in a banner. Add `?sim` to force simulation. On a real device, tick "Force a real device failure": it sends a prompt
+larger than the model's input quota, so stock Firebase fails on real Nano without any simulation. For real cloud calls
 set `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_PROJECT_ID` and `VITE_FIREBASE_APP_ID`.
 
 `prototype/` holds the earlier single-file prototype, kept for reference.
