@@ -40,13 +40,20 @@ function fakeNano(state: string, opts: { events?: number[] } = {}) {
   };
 }
 
+const states: string[] = []; // the label the Run button had when it was enabled
 async function runKit(lm?: unknown) {
+  states.length = 0;
   vi.resetModules();
   document.body.innerHTML = html.replace(/<script>[\s\S]*<\/script>/, '');
   if (lm) (globalThis as any).LanguageModel = lm; else delete (globalThis as any).LanguageModel;
   (0, eval)(script);
-  dom('run').click();
-  await vi.waitFor(() => expect(dom('report').value).not.toBe(''), { timeout: 4000 });
+  dom('check').click();
+  await vi.waitFor(() => expect(dom('run').disabled === false || dom('report').value !== '').toBe(true), { timeout: 4000 });
+  if (!dom('run').disabled) {
+    states.push(dom('run').textContent!);
+    dom('run').click();
+    await vi.waitFor(() => expect(dom('report').value).not.toBe(''), { timeout: 4000 });
+  }
   return JSON.parse(dom('report').value);
 }
 
@@ -86,4 +93,27 @@ it('still writes a report on an ineligible machine and on a browser without the 
   expect(r.baseline).toEqual({});
   const none = await runKit(undefined);
   expect(none.env.hasLanguageModel).toBe(false);
+});
+
+it('asks before downloading: the run button says so, and nothing downloads until it is pressed', async () => {
+  const lm = fakeNano('downloadable', { events: [0.5, 1] });
+  let created = 0;
+  const create = lm.create;
+  lm.create = async (o?: any) => (created++, create(o));
+  vi.resetModules();
+  document.body.innerHTML = html.replace(/<script>[\s\S]*<\/script>/, '');
+  (globalThis as any).LanguageModel = lm;
+  (0, eval)(script);
+  dom('check').click();
+  await vi.waitFor(() => expect(dom('run').disabled).toBe(false));
+  expect(created).toBe(0);
+  expect(dom('run').textContent).toBe('2. Download and run the test');
+  expect(document.getElementById('verdict')!.textContent).toMatch(/about 4 GB/);
+});
+
+it('explains plainly when the API is missing or the machine cannot run it', async () => {
+  await runKit(undefined);
+  expect(document.getElementById('verdict')!.textContent).toMatch(/isn't switched on/);
+  await runKit(fakeNano('unavailable'));
+  expect(document.getElementById('verdict')!.textContent).toMatch(/can't run it/);
 });

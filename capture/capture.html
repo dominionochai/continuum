@@ -7,13 +7,28 @@
   body { font: 15px/1.5 system-ui, sans-serif; max-width: 760px; margin: 0 auto; padding: 24px; }
   button { font: inherit; padding: 6px 12px; }
   pre, textarea { width: 100%; box-sizing: border-box; background: rgb(128 128 128 / .15); color: inherit; border: 0; padding: 8px; font-size: 13px; white-space: pre-wrap; }
-  pre { min-height: 8em; }
+  pre { min-height: 4em; }
+  code { font-size: 13px; }
 </style>
-<h1>Continuum: on-device capture</h1>
-<p>Runs Chrome's built-in model (Gemini Nano) through a short script and records how it behaves, including errors it is made to cause. Nothing is sent anywhere: you copy the report yourself. It holds your Chrome version, OS, CPU count and memory tier, and no personal data.</p>
-<p><button id="run">Run capture</button> <button id="copy" disabled>Copy report</button> <button id="save" disabled>Save report.json</button></p>
+<h1>Gemini Nano test</h1>
+<p>This page tests Chrome's built-in AI model on your computer for a project of mine, and writes a short report. Nothing is sent anywhere: you copy the report and send it to me yourself. It contains your Chrome version, system, CPU count and memory, and no personal data.</p>
+
+<h2>Step 1: switch the feature on (once)</h2>
+<p>Copy each address, paste it into Chrome's address bar, press Enter, and pick the setting shown.</p>
+<ol>
+  <li><code>chrome://flags/#optimization-guide-on-device-model</code> <button data-copy="chrome://flags/#optimization-guide-on-device-model">Copy</button><br>set it to <b>Enabled BypassPerfRequirement</b></li>
+  <li><code>chrome://flags/#prompt-api-for-gemini-nano</code> <button data-copy="chrome://flags/#prompt-api-for-gemini-nano">Copy</button><br>set it to <b>Enabled</b></li>
+  <li>Click the <b>Relaunch</b> button at the bottom of Chrome, then open this file again.</li>
+</ol>
+
+<h2>Step 2: check, then run</h2>
+<p><button id="check">1. Check this computer</button> <button id="run" disabled>2. Run the test</button></p>
+<p id="verdict"><b>Press "1. Check this computer". Nothing gets downloaded yet.</b></p>
 <pre id="log"></pre>
-<textarea id="report" rows="12" readonly placeholder="The report appears here."></textarea>
+
+<h2>Step 3: send me the report</h2>
+<p><button id="copy" disabled>Copy report</button> <button id="save" disabled>Save report.json</button> Then paste it (or send the file) in a message to me.</p>
+<textarea id="report" rows="8" readonly placeholder="The report appears here."></textarea>
 <script>
 const $ = (id) => document.getElementById(id);
 const log = (s) => ($('log').textContent += s + '\n');
@@ -56,32 +71,57 @@ async function download(LM, opts) {
   return { outcome, totalMs: Math.round(performance.now() - t0), maxGapMs: Math.round(maxGap), events, activeAtStart };
 }
 
-async function run() {
-  $('run').disabled = true;
+let LM, opts, states;
+const say = (t) => ($('verdict').innerHTML = t);
+function finish() {
+  R.finishedAt = new Date().toISOString();
+  $('report').value = JSON.stringify(R, null, 2);
+  $('copy').disabled = $('save').disabled = false;
+}
+
+// Looks only. Nothing is downloaded here.
+async function check() {
+  $('check').disabled = true;
   try {
     R.env = { ua: navigator.userAgent, secure: self.isSecureContext, origin: location.origin, hasLanguageModel: 'LanguageModel' in self,
       cpus: navigator.hardwareConcurrency, deviceMemoryGB: navigator.deviceMemory };
-    log('1/5 environment');
-    if (!R.env.hasLanguageModel) return void log('LanguageModel is not defined. Enable both flags (see README), relaunch Chrome, and open this page from http://localhost.');
-    const LM = self.LanguageModel;
-
-    log('2/5 availability');
+    if (!R.env.hasLanguageModel) {
+      say("<b>Chrome's AI isn't switched on yet.</b> Do Step 1, relaunch Chrome, and open this file again. If you already did, tell me, and copy the report below.");
+      return finish();
+    }
+    LM = self.LanguageModel;
     R.availability.bare = await attempt('availability()', () => LM.availability());
     R.availability.withLanguages = await attempt('availability(opts)', () => LM.availability(OPTS));
     R.availability.params = await attempt('params()', async () => (LM.params ? await LM.params() : 'n/a'));
-    const states = [R.availability.bare.value, R.availability.withLanguages.value];
-    log('  ' + states.join(' / '));
-    if (states.every((s) => !s || s === 'unavailable'))
-      return void log('Not eligible on this machine. Open chrome://on-device-internals, screenshot the Model Status tab, and send it with this report.');
-    const opts = states[1] && states[1] !== 'unavailable' ? OPTS : {};
+    states = [R.availability.bare.value, R.availability.withLanguages.value];
+    log('Chrome says: ' + states.join(' / '));
+    if (states.every((s) => !s || s === 'unavailable')) {
+      say("<b>This computer can't run it</b> (Chrome says it is unavailable). Nothing was downloaded. Thank you for trying! Press Copy report and send it to me anyway, it helps.");
+      return finish();
+    }
+    opts = states[1] && states[1] !== 'unavailable' ? OPTS : {};
+    const download = states.some((s) => s === 'downloadable' || s === 'downloading');
+    $('run').textContent = download ? '2. Download and run the test' : '2. Run the test';
+    $('run').disabled = false;
+    say(download
+      ? "<b>This computer can do it, but Chrome must first download the AI model (about 4 GB).</b> Only continue on Wi-Fi with no data limit, and keep this tab open until it finishes."
+      : "<b>Everything is ready.</b> The test takes a few minutes. Keep this tab open.");
+  } catch (e) {
+    R.kitError = shape(e); say('Something went wrong: ' + e?.message); finish();
+  }
+}
 
+async function run() {
+  $('run').disabled = true;
+  try {
     if (states.some((s) => s === 'downloadable' || s === 'downloading')) {
-      log('3/5 downloading the model (large; keep this tab open)');
+      say('<b>Downloading the model...</b> keep this tab open.');
+      log('downloading the model');
       R.download = await download(LM, opts);
       log('  ' + R.download.outcome);
-    } else log('3/5 model already present');
-
-    log('4/5 baseline inference');
+    }
+    say('<b>Testing...</b> a few minutes. Errors in the log below are expected: the test causes them on purpose.');
+    log('baseline inference');
     let S;
     R.baseline.create = await attempt('create()', async () => ((S = await LM.create(opts)), 'ok'), 120000);
     if (R.baseline.create.ok) {
@@ -97,7 +137,7 @@ async function run() {
     }
     R.availableButFailed = states.includes('available') && (!R.baseline.create.ok || R.baseline.prompts.some((p) => !p.ok));
 
-    log('5/5 forced failures (errors here are expected)');
+    log('forced failures (errors here are expected)');
     const withSession = (fn) => async () => { const s = await LM.create(opts); try { return await fn(s); } finally { s.destroy?.(); } };
     const F = R.forced;
     F.oversizedPrompt = await attempt('oversized', withSession(async (s) => (await s.prompt('word '.repeat(600000))).length));
@@ -110,13 +150,13 @@ async function run() {
   } catch (e) {
     R.kitError = shape(e); log('Kit error: ' + e?.message);
   } finally {
-    R.finishedAt = new Date().toISOString();
-    $('report').value = JSON.stringify(R, null, 2);
-    $('copy').disabled = $('save').disabled = $('run').disabled = false;
-    log('Done. Copy or save the report and send it back.');
+    finish();
+    say("<b>All done. Thank you!</b> Press <b>Copy report</b> (Step 3) and paste it into a message to me.");
   }
 }
 
+$('check').onclick = check;
+document.querySelectorAll('[data-copy]').forEach((b) => (b.onclick = () => navigator.clipboard?.writeText(b.dataset.copy)));
 $('run').onclick = run;
 $('copy').onclick = async () => { try { await navigator.clipboard.writeText($('report').value); } catch { $('report').select(); document.execCommand('copy'); } };
 $('save').onclick = () => {
