@@ -10,6 +10,7 @@ export interface Opts {
   simulated: boolean;                         // stamped on the report: never let a simulated run pass as real
   runs?: number;
   timeoutMs?: number;
+  probeMs?: number;                           // how long the health probe may take before the device is called unhealthy
 }
 
 const pct = (a: number[], p: number) => (a.length ? Math.round([...a].sort((x, y) => x - y)[Math.min(a.length - 1, Math.floor(a.length * p))]) : null);
@@ -35,9 +36,9 @@ async function measure(runs: number, fn: (i: number) => Promise<unknown>, timeou
  *  2. interruption: the page dies in stage 2. Counts stage starts and finished stages that run again.
  */
 export async function bench(o: Opts) {
-  const { gen, stock, lm, prompt, runs = 20, timeoutMs = 30_000 } = o;
+  const { gen, stock, lm, prompt, runs = 20, timeoutMs = 30_000, probeMs } = o;
   const db = `bench-${Date.now()}`;
-  const h = health(lm), q = quota();
+  const h = health(lm, probeMs ? { probeMs } : {}), q = quota();
   const hooks = { route: policy(h, { quota: q }), ...observe(h, q) };
   const two = (p: string): Stage<void>[] => [['extract', c => gen(c.source, p)], ['summarize', c => gen(c.source, p)]];
 
