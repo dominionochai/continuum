@@ -9,7 +9,7 @@ and checkpoints every stage, so a reload or a crash resumes instead of starting 
 
 ```ts
 import { runner, idbStore, health, quota, policy, observe } from 'continuum';
-import { firebaseGenerate } from 'continuum/firebase'; // needs @firebase/ai >= 13
+import { firebaseGenerate } from 'continuum/firebase'; // needs @firebase/ai >= 2.16
 
 const gen = firebaseGenerate(ai);                        // `ai` from getAI(...)
 const h = health(window.LanguageModel), q = quota();
@@ -43,7 +43,7 @@ await tasks.run('doc-42', text); // starts the task, or resumes it after a reloa
 
 ## Verification status
 
-- Tested (41 tests) against the real `@firebase/ai` 13.3 **browser build** with a **simulated** device
+- Tested (41 tests) against the real `@firebase/ai` 3.1.0 **browser build** with a **simulated** device
   (`fakeLanguageModel`) and a stubbed network. The simulated device reports `available`, then fails: stock
   Firebase surfaces the error, Continuum completes via cloud.
 - Cloud error shapes (status codes, retry hints) come from the SDK's own source.
@@ -57,6 +57,17 @@ await tasks.run('doc-42', text); // starts the task, or resumes it after a reloa
 exposes a real `LanguageModel`, and says so in a banner. Add `?sim` to force simulation. On a real device, tick "Force a real device failure": it sends a prompt
 larger than the model's input quota, so stock Firebase fails on real Nano without any simulation. For real cloud calls
 set `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_PROJECT_ID` and `VITE_FIREBASE_APP_ID`.
+
+## Benchmark
+
+`bench/bench.ts` compares stock Firebase with Continuum on one two-stage task: (1) does it survive a device that
+reports available and then fails on this prompt, and (2) what happens when the page dies in stage 2. The demo
+has a "Run benchmark" button. A run says `SIMULATED` unless a real device was used. In the interruption scenario
+the stock numbers are by construction (stock keeps no state) and are labeled that way; Continuum's are read from
+its log.
+
+`docs/upstream-issue-draft.md` is a draft issue for the missing on-device fallback in `PREFER_ON_DEVICE`. It is
+not filed and must be confirmed on real hardware first.
 
 `prototype/` holds the earlier single-file prototype, kept for reference.
 

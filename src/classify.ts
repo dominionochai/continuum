@@ -3,7 +3,7 @@ import type { Source } from './runner.js';
 export type Kind = 'quota' | 'network' | 'timeout' | 'availability' | 'config' | 'inference';
 
 /**
- * Maps an error to what it means for recovery. Shapes come from @firebase/ai's own source (13.3):
+ * Maps an error to what it means for recovery. Shapes come from @firebase/ai 3.1.0's own source:
  * cloud failures are `AIError` with `customErrorData.status`; fetch timeouts surface as `AbortError`.
  * `source` matters: the SDK reuses `api-not-enabled` for "no on-device LanguageModel" as well.
  */

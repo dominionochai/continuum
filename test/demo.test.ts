@@ -71,3 +71,9 @@ it('real mode: an oversized prompt breaks stock Firebase on the device; Continuu
   expect(el('trace').textContent).toContain('extract [device] fail:quota');
   expect(el('trace').textContent).toContain('extract [cloud] done');
 });
+
+it('runs the benchmark from the page and says whether it was simulated', async () => {
+  await load();
+  el('run-bench').click();
+  await vi.waitFor(() => expect(el('bench-out').textContent).toMatch(/^SIMULATED[\s\S]*stock Firebase:[\s\S]*Continuum:/), { timeout: 4500 });
+});

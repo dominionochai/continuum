@@ -1,4 +1,5 @@
 import type { Source } from './runner.js';
+import { within } from './within.js';
 
 export interface LM {
   availability(): Promise<string>;
@@ -15,12 +16,6 @@ export interface Assessment {
 }
 
 const fingerprint = (e: any) => `${e?.name}:${e?.code ?? ''}:${String(e?.message).replace(/\d+/g, '#').slice(0, 60)}`;
-
-async function within<T>(p: Promise<T>, ms: number): Promise<T> {
-  let t: ReturnType<typeof setTimeout>;
-  const late = new Promise<never>((_, no) => (t = setTimeout(() => no(Object.assign(new Error('timed out'), { name: 'TimeoutError' })), ms)));
-  return Promise.race([p, late]).finally(() => clearTimeout(t));
-}
 
 export function health(lm: LM | undefined, { now = Date.now, ttl = 60_000, probeMs = 5_000, stallMs = 15_000 } = {}) {
   let cur: Assessment = { status: 'unknown', why: 'not assessed', confidence: 'low', expires: 0 };

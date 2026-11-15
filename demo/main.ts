@@ -2,6 +2,7 @@ import { getAI, getGenerativeModel, GoogleAIBackend, InferenceMode } from '@fire
 import { initializeApp } from '@firebase/app';
 import { fakeLanguageModel, format, health, idbStore, observe, policy, quota, runner, type Sim } from '../src/index.js';
 import { firebaseGenerate } from '../src/firebase.js';
+import { bench, formatBench } from '../bench/bench.js';
 
 const $ = (id: string) => document.getElementById(id)!;
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -83,6 +84,17 @@ $('run-cont').onclick = () => {
   const id = crypto.randomUUID();
   localStorage.setItem('task', id);
   void go(id);
+};
+
+$('run-bench').onclick = async () => {
+  out('bench-out', 'running...');
+  const stock = async (p: string) => (await getGenerativeModel(ai, { mode: InferenceMode.PREFER_ON_DEVICE }).generateContent(p)).response.text();
+  try {
+    const r = await bench({ gen, stock, lm: (window as any).LanguageModel, prompt: `Extract the key facts: ${await doc()}`, runs: 10, simulated });
+    out('bench-out', `${formatBench(r)}\n\n${JSON.stringify(r, null, 1)}`);
+  } catch (e: any) {
+    out('bench-out', `ERROR\n${e.message}`);
+  }
 };
 
 // A reload mid-task leaves an unfinished task behind: pick it up where it stopped.

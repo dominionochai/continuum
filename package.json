@@ -32,7 +32,7 @@
     "analyze": "npm run -s build && node capture/analyze.mjs"
   },
   "devDependencies": {
-    "@firebase/ai": "^2.16.0",
+    "@firebase/ai": "^3.1.0",
     "@firebase/app": "^0.16.2",
     "@types/node": "^26.6.6",
     "fake-indexeddb": "^6.2.8",
@@ -42,7 +42,7 @@
     "vitest": "^5.1.0"
   },
   "peerDependencies": {
-    "@firebase/ai": ">=13"
+    "@firebase/ai": ">=2.16.0"
   },
   "peerDependenciesMeta": {
     "@firebase/ai": {
