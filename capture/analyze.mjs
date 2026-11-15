@@ -12,7 +12,7 @@ export function analyze(r, classify) {
   ];
   if (r.download) L.push(`Download: ${r.download.outcome} in ${Math.round(r.download.totalMs / 1000)}s, ${r.download.events.length} progress events, longest gap ${r.download.maxGapMs} ms`);
   const b = r.baseline?.summary;
-  if (b) L.push(`Baseline: ${b.ok} ok / ${b.failed} failed, first ${b.firstMs} ms, median ${b.medianMs} ms, session input quota ${r.baseline.session?.inputQuota ?? 'n/a'}`);
+  if (b) L.push(`Baseline: ${b.ok} ok / ${b.failed} failed, first ${b.firstMs} ms, median ${b.medianMs} ms, session input quota ${r.baseline.session?.contextWindow ?? r.baseline.session?.inputQuota ?? 'n/a'}`);
   if (r.probeMedianMs != null) L.push(`Health probe cost: median ${r.probeMedianMs} ms`);
   L.push(`Reported available, then failed: ${r.availableButFailed ? 'YES (the gap, on real hardware)' : 'no'}`);
   if (r.kitError) L.push(`Kit error: ${r.kitError.name}: ${r.kitError.message}`);

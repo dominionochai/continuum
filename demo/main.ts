@@ -35,7 +35,7 @@ const out = (id: string, text: string) => ($(id).textContent = text);
 let big: Promise<string> | undefined;
 const sized = async () => {
   const s = await (window as any).LanguageModel.create().catch(() => undefined);
-  const quota: number = s?.inputQuota ?? 8000;
+  const quota: number = s?.contextWindow ?? s?.inputQuota ?? 8000; // newer Chrome renamed the property
   s?.destroy?.();
   return 'word '.repeat(quota * 2);
 };

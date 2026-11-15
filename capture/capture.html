@@ -13,20 +13,24 @@
 <h1>Gemini Nano test</h1>
 <p>This page tests Chrome's built-in AI model on your computer for a project of mine, and writes a short report. Nothing is sent anywhere: you copy the report and send it to me yourself. It contains your Chrome version, system, CPU count and memory, and no personal data.</p>
 
-<h2>Step 1: switch the feature on (once)</h2>
-<p>Copy each address, paste it into Chrome's address bar, press Enter, and pick the setting shown.</p>
-<ol>
-  <li><code>chrome://flags/#optimization-guide-on-device-model</code> <button data-copy="chrome://flags/#optimization-guide-on-device-model">Copy</button><br>set it to <b>Enabled BypassPerfRequirement</b></li>
-  <li><code>chrome://flags/#prompt-api-for-gemini-nano</code> <button data-copy="chrome://flags/#prompt-api-for-gemini-nano">Copy</button><br>set it to <b>Enabled</b></li>
-  <li>Click the <b>Relaunch</b> button at the bottom of Chrome, then open this file again.</li>
-</ol>
-
-<h2>Step 2: check, then run</h2>
+<h2>Step 1: check, then run</h2>
 <p><button id="check">1. Check this computer</button> <button id="run" disabled>2. Run the test</button></p>
 <p id="verdict"><b>Press "1. Check this computer". Nothing gets downloaded yet.</b></p>
 <pre id="log"></pre>
 
-<h2>Step 3: send me the report</h2>
+<details>
+  <summary><b>Only if the check says Chrome's AI isn't switched on: switch it on (once)</b></summary>
+  <p>Recent Chrome often needs no setup, so try the check first. If it asks, copy each address, paste it into Chrome's address bar, press Enter, and pick the setting shown. If a flag doesn't exist in your Chrome, skip it.</p>
+  <ol>
+    <li><code>chrome://flags/#prompt-api-for-gemini-nano-multimodal-input</code> <button data-copy="chrome://flags/#prompt-api-for-gemini-nano-multimodal-input">Copy</button><br>set it to <b>Enabled</b></li>
+    <li>Older Chrome only: <code>chrome://flags/#prompt-api-for-gemini-nano</code> <button data-copy="chrome://flags/#prompt-api-for-gemini-nano">Copy</button><br>set it to <b>Enabled</b></li>
+    <li><code>chrome://flags/#optimization-guide-on-device-model</code> <button data-copy="chrome://flags/#optimization-guide-on-device-model">Copy</button><br>set it to <b>Enabled BypassPerfRequirement</b></li>
+    <li>Click the <b>Relaunch</b> button at the bottom of Chrome, then open this file again and press the check.</li>
+  </ol>
+</details>
+
+
+<h2>Step 2: send me the report</h2>
 <p><button id="copy" disabled>Copy report</button> <button id="save" disabled>Save report.json</button> Then paste it (or send the file) in a message to me.</p>
 <textarea id="report" rows="8" readonly placeholder="The report appears here."></textarea>
 <script>
@@ -86,7 +90,7 @@ async function check() {
     R.env = { ua: navigator.userAgent, secure: self.isSecureContext, origin: location.origin, hasLanguageModel: 'LanguageModel' in self,
       cpus: navigator.hardwareConcurrency, deviceMemoryGB: navigator.deviceMemory };
     if (!R.env.hasLanguageModel) {
-      say("<b>Chrome's AI isn't switched on yet.</b> Do Step 1, relaunch Chrome, and open this file again. If you already did, tell me, and copy the report below.");
+      say("<b>Chrome's AI isn't switched on yet.</b> Open the section \"Only if the check says...\" below the log, switch it on, relaunch Chrome, and open this file again. If you already did, tell me, and copy the report below.");
       return finish();
     }
     LM = self.LanguageModel;
@@ -125,7 +129,7 @@ async function run() {
     let S;
     R.baseline.create = await attempt('create()', async () => ((S = await LM.create(opts)), 'ok'), 120000);
     if (R.baseline.create.ok) {
-      R.baseline.session = { inputQuota: S.inputQuota, inputUsage: S.inputUsage };
+      R.baseline.session = { inputQuota: S.inputQuota, inputUsage: S.inputUsage, contextWindow: S.contextWindow, contextUsage: S.contextUsage };
       R.baseline.prompts = [];
       for (let i = 0; i < 8; i++) R.baseline.prompts.push(await attempt('prompt', async () => (await S.prompt('Reply with the single word: ok')).length, 120000));
       const ok = R.baseline.prompts.filter((p) => p.ok).map((p) => p.ms);
