@@ -9,7 +9,8 @@ export type Kind = 'quota' | 'network' | 'timeout' | 'availability' | 'config' |
  */
 export function classify(e: any, source: Source): Kind {
   const status: number | undefined = e?.customErrorData?.status;
-  if (e?.name === 'AbortError') return 'timeout';
+  if (e?.name === 'AbortError' || e?.name === 'TimeoutError') return 'timeout';
+  if (e?.name === 'DeviceUnavailable' || e?.name === 'SourceMismatch') return 'availability'; // raised by the Firebase adapter
   // Cloud 429, or on-device QuotaExceededError (the Prompt API's "input too large"; unverified on a real device).
   if (status === 429 || e?.name === 'QuotaExceededError') return 'quota';
   if (status !== undefined && status >= 500) return 'network';

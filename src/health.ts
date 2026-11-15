@@ -17,7 +17,18 @@ export interface Assessment {
 
 const fingerprint = (e: any) => `${e?.name}:${e?.code ?? ''}:${String(e?.message).replace(/\d+/g, '#').slice(0, 60)}`;
 
-export function health(lm: LM | undefined, { now = Date.now, ttl = 60_000, probeMs = 5_000, stallMs = 15_000 } = {}) {
+export interface HealthOpts {
+  now?: () => number;
+  ttl?: number;
+  probeMs?: number;
+  stallMs?: number;
+  /** A tiny real inference. Default: call the model directly. Pass one that goes through your own SDK. */
+  probe?: () => Promise<unknown>;
+  /** Starts and tracks the model download, calling `onProgress` on every progress event. Default: `LanguageModel.create`. */
+  download?: (onProgress: () => void) => Promise<unknown>;
+}
+
+export function health(lm: LM | undefined, { now = Date.now, ttl = 60_000, probeMs = 5_000, stallMs = 15_000, probe, download }: HealthOpts = {}) {
   let cur: Assessment = { status: 'unknown', why: 'not assessed', confidence: 'low', expires: 0 };
   const seen = new Map<string, number>();
   const set = (status: Assessment['status'], why: string, life: number, fp?: string): Assessment =>
@@ -36,8 +47,11 @@ export function health(lm: LM | undefined, { now = Date.now, ttl = 60_000, probe
       if (a === 'unavailable') return set('unhealthy', a, ttl * 10);
       if (a !== 'available') return set('unhealthy', a, ttl / 6); // downloadable/downloading: not ready yet
       // "available" is only what Chrome reports. Run a tiny real inference to see if it actually works.
-      const s = await within(lm.create(), probeMs);
-      try { await within(s.prompt('ok'), probeMs); } finally { s.destroy?.(); }
+      if (probe) await within(probe(), probeMs);
+      else {
+        const s = await within(lm.create(), probeMs);
+        try { await within(s.prompt('ok'), probeMs); } finally { s.destroy?.(); }
+      }
       return set('healthy', 'probe succeeded', ttl);
     } catch (e) {
       return fail(e, 'probe failed');
@@ -50,8 +64,11 @@ export function health(lm: LM | undefined, { now = Date.now, ttl = 60_000, probe
       let t: ReturnType<typeof setTimeout>;
       const arm = () => (clearTimeout(t), (t = setTimeout(() => done('stuck'), stallMs)));
       arm();
-      lm.create({ monitor: (m: EventTarget) => m.addEventListener('downloadprogress', arm) }).then(
-        s => (s.destroy?.(), clearTimeout(t), done('ready')),
+      const started = download
+        ? download(arm)
+        : lm.create({ monitor: (m: EventTarget) => m.addEventListener('downloadprogress', arm) }).then(s => s.destroy?.());
+      started.then(
+        () => (clearTimeout(t), done('ready')),
         e => (clearTimeout(t), fail(e, 'download failed'), done('failed')),
       );
     }).then(r => {

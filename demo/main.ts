@@ -1,7 +1,7 @@
 import { getAI, getGenerativeModel, GoogleAIBackend, InferenceMode } from '@firebase/ai';
 import { initializeApp } from '@firebase/app';
 import { fakeLanguageModel, format, health, idbStore, observe, policy, quota, runner, type Sim } from '../src/index.js';
-import { firebaseGenerate } from '../src/firebase.js';
+import { firebaseGenerate, firebaseWarm } from '../src/firebase.js';
 import { bench, formatBench } from '../bench/bench.js';
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -52,7 +52,7 @@ $('run-stock').onclick = async () => {
 };
 
 const gen = firebaseGenerate(ai);
-const h = health((window as any).LanguageModel), q = quota();
+const h = health((window as any).LanguageModel, { probe: () => gen('device', 'Reply with: ok', { timeoutMs: 5000 }), download: firebaseWarm(ai) }), q = quota();
 const store = idbStore('continuum-demo');
 const tasks = runner(
   store,

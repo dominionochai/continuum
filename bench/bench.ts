@@ -1,7 +1,7 @@
 import { health, idbStore, observe, policy, quota, recoveries, runner, spans, type Source, type Stage } from '../src/index.js';
 import { within } from '../src/within.js';
 
-export type Gen = (source: Source, prompt: string) => Promise<{ text: string }>;
+export type Gen = (source: Source, prompt: string, opts?: { timeoutMs?: number }) => Promise<{ text: string }>;
 export interface Opts {
   gen: Gen;                                   // Continuum's adapter: (source, prompt)
   stock: (prompt: string) => Promise<string>; // the same call through stock PREFER_ON_DEVICE
@@ -38,7 +38,7 @@ async function measure(runs: number, fn: (i: number) => Promise<unknown>, timeou
 export async function bench(o: Opts) {
   const { gen, stock, lm, prompt, runs = 20, timeoutMs = 30_000, probeMs } = o;
   const db = `bench-${Date.now()}`;
-  const h = health(lm, probeMs ? { probeMs } : {}), q = quota();
+  const h = health(lm, { ...(probeMs ? { probeMs } : {}), probe: () => gen('device', 'Reply with: ok', { timeoutMs: probeMs }) }), q = quota();
   const hooks = { route: policy(h, { quota: q }), ...observe(h, q) };
   const two = (p: string): Stage<void>[] => [['extract', c => gen(c.source, p)], ['summarize', c => gen(c.source, p)]];
 

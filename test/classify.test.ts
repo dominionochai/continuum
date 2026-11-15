@@ -16,5 +16,8 @@ it.each([
   ['api-not-enabled on cloud is config', ai(C.API_NOT_ENABLED), 'cloud', 'config'],
   ['missing api key is config', ai(C.NO_API_KEY), 'cloud', 'config'],
   ['fetch timeout is timeout', new DOMException('x', 'AbortError'), 'cloud', 'timeout'],
+  ['an adapter timeout is timeout', Object.assign(new Error('x'), { name: 'TimeoutError' }), 'device', 'timeout'],
+  ['no LanguageModel (adapter guard) is availability', Object.assign(new Error('x'), { name: 'DeviceUnavailable' }), 'device', 'availability'],
+  ['SDK served a different source than requested is availability', Object.assign(new Error('x'), { name: 'SourceMismatch' }), 'device', 'availability'],
   ['anything else is inference', new Error('boom'), 'device', 'inference'],
 ] as const)('%s', (_, e, source, kind) => expect(classify(e, source)).toBe(kind));

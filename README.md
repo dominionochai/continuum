@@ -22,6 +22,10 @@ const tasks = runner(idbStore(), [
 await tasks.run('doc-42', text); // starts the task, or resumes it after a reload
 ```
 
+All inference goes through Firebase AI Logic, including Continuum's health probe and the model download
+(`initializeDeviceModel`). The only code that calls Chrome's `LanguageModel` directly is `capture/`, a standalone
+measurement kit that is not part of the app.
+
 ## What each part does
 
 - **`runner`**: stages are checkpointed to IndexedDB. Finished stages are never re-run.
@@ -39,6 +43,9 @@ await tasks.run('doc-42', text); // starts the task, or resumes it after a reloa
 - **At-least-once per stage.** A crash between a stage finishing and its checkpoint re-runs that stage. Use
   `ctx.key` (`taskId/stage`) to make side effects idempotent.
 - One run per task across tabs (Web Locks).
+- The Firebase adapter guards three SDK behaviors (checked in `@firebase/ai` 3.1.0): `ONLY_ON_DEVICE` silently uses
+  the cloud when `LanguageModel` is absent, every on-device call destroys the previous session so device calls take
+  turns, and the on-device path has no timeout.
 - One lost device attempt sends the rest of the task to the cloud. Override with `route`.
 
 ## Verification status

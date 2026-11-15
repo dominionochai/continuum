@@ -47,3 +47,25 @@ Continuum demo has a "Force a real device failure" switch that does this.
   #7739, #7755 by title). I have not read that code, so I make no claim about parity.
 - The numbered issues in the project notes (#1078, #1061, #1019, #1070, #1080) were not located or
   verified here. They are described as Android cases, which would not transfer to web automatically.
+
+---
+
+# Two more SDK behaviors, verified in `@firebase/ai` 3.1.0 source and reproduced in `test/adapter.test.ts`
+
+Both were first pointed out in the README of another #BuildHybridAI entry (GGGODLIN/firebase-flow-witness). I
+checked each in the SDK source and reproduced it against the real SDK before relying on it.
+
+## 1. `ONLY_ON_DEVICE` runs in the cloud when `LanguageModel` is absent
+`chromeAdapterFactory` returns `undefined` when `window.LanguageModel` is missing, and `callCloudOrDevice` starts with
+`if (!chromeAdapter) return inCloudCall()`, before it looks at `ONLY_ON_DEVICE`. The request leaves the device.
+Reproduction: `getGenerativeModel(ai, { mode: InferenceMode.ONLY_ON_DEVICE })` with no `LanguageModel` returns a
+response with `inferenceSource === 'in_cloud'` and makes one network request. Suggested: throw for `ONLY_ON_DEVICE`
+instead (the docs and the `isAvailable` path already throw `API_NOT_ENABLED` when the API is unavailable).
+
+## 2. Concurrent on-device calls abort each other
+`ChromeAdapterImpl.createSession()` calls `this.oldSession.destroy()` on every request. A second call made while the
+first is running destroys the first call's session. Reproduction: two concurrent `generateContent` calls on one
+`PREFER_ON_DEVICE` model, against a device whose sessions die when destroyed: one rejects.
+
+## And one gap: no timeout on the on-device path
+`ChromeAdapterImpl` contains no timeout or abort handling, so a hung on-device inference never settles.
