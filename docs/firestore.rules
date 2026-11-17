@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Continuum tasks. The task id is the secret: use an unguessable id (a UUID) and share it only by link,
+    // like an "anyone with the link" document. Anonymous sign-in is enough.
+    match /continuum-tasks/{id} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

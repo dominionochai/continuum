@@ -18,7 +18,7 @@ export const spans = (log: Entry[]): Span[] =>
   log.flatMap((e, i): Span[] => {
     const next = log[i + 1];
     if (e.k !== 'start') return [];
-    if (!next || next.k === 'start')
+    if (!next || (next.k !== 'done' && next.k !== 'fail'))
       return [{ stage: e.stage, source: e.source, at: e.at, outcome: 'interrupted', basis: 'inferred' }];
     return [{
       stage: e.stage, source: e.source, at: e.at, outcome: next.k, basis: 'observed',
@@ -41,7 +41,12 @@ export const recoveries = (log: Entry[]) => {
 
 export const format = (log: Entry[]) => {
   const s = spans(log);
-  const lines = s.map(x =>
-    `${x.stage} [${x.source}] ${x.outcome}${x.kind ? ':' + x.kind : ''}${x.basis === 'inferred' ? '*' : ''} ${x.ms ?? '?'}ms${x.error ? ' ' + x.error : ''}`);
-  return [...lines, ...(s.some(x => x.basis === 'inferred') ? ['* inferred, not observed'] : [])].join('\n');
+  const lines: [number, string][] = s.map(x => [x.at,
+    `${x.stage} [${x.source}] ${x.outcome}${x.kind ? ':' + x.kind : ''}${x.basis === 'inferred' ? '*' : ''} ${x.ms ?? '?'}ms${x.error ? ' ' + x.error : ''}`]);
+  log.forEach((e, i) => {
+    if (e.k !== 'wait') return;
+    const resumed = log.slice(i + 1).find(x => x.k === 'start');
+    lines.push([e.at, `${e.stage} waited for the network${resumed ? ` ${resumed.at - e.at}ms` : ' (still waiting)'}`]);
+  });
+  return [...lines.sort((a, b) => a[0] - b[0]).map(l => l[1]), ...(s.some(x => x.basis === 'inferred') ? ['* inferred, not observed'] : [])].join('\n');
 };

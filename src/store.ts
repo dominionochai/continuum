@@ -3,6 +3,8 @@ import type { Task } from './runner.js';
 export interface Store {
   get(id: string): Promise<Task | undefined>;
   put(task: Task): Promise<void>;
+  /** Every task id, so unfinished tasks can be found and resumed. */
+  ids?(): Promise<string[]>;
 }
 
 const done = (r: IDBRequest | IDBTransaction) =>
@@ -18,6 +20,7 @@ export function idbStore(name = 'continuum', idb: IDBFactory = indexedDB): Store
   const db = done(open) as Promise<IDBDatabase>;
   return {
     get: async id => done((await db).transaction('tasks').objectStore('tasks').get(id)),
+    ids: async () => done((await db).transaction('tasks').objectStore('tasks').getAllKeys()),
     // Resolve on transaction commit, not request success: a checkpoint isn't durable before that.
     put: async task => {
       const tx = (await db).transaction('tasks', 'readwrite');

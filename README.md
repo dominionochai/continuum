@@ -38,6 +38,34 @@ measurement kit that is not part of the app.
   transient kinds are retried (3 tries, backoff).
 - **`spans`, `recoveries`, `format`**: a trace of every attempt, labeled `observed` or `inferred`.
 
+## Beyond stages
+
+```ts
+// Checkpoint inside a stage, and continue an answer another attempt began (mid-stream failover):
+['write', c => gen.stream(c.source, prompt, { saved: c.saved, save: c.save })],
+
+// A stage that only the cloud can run. Offline, the runner records a wait and carries on by itself when the
+// network returns. Device-only stages ({ needs: 'device' }) are never sent to the cloud.
+['polish', c => gen(c.source, ...), { needs: 'cloud' }],
+
+await tasks.resumeAll(); // on page load: finish every unfinished task
+
+// Cross-device resume: local-first, a lease so only one device runs a task, and the log merges by length.
+import { firestoreRemote } from 'continuum/firestore';
+const { store, lock } = sync(idbStore(), firestoreRemote(db), deviceId);
+const tasks = runner(store, stages, { lock, ... });
+```
+
+- `ctx.save(value)` is throttled (200 ms). What was saved last survives a failure, a reload, or a move to another
+  device, and is dropped once the stage finishes.
+- A continued answer is a new model call that is shown the answer so far. It is a continuation, not the same
+  model state, and the result says `continued: true`.
+- A device that dies loses its lease after `ttl` (30 s) and another device takes over. Leases assume clocks within
+  a few seconds of each other.
+- Offline, sync skips the remote and the device carries on alone, so two offline devices could both run a task.
+- Tasks are keyed by their id. `docs/firestore.rules` treats the id as the secret (an "anyone with the link"
+  model), with anonymous sign-in. Tighten it if tasks hold anything sensitive.
+
 ## Guarantees
 
 - **At-least-once per stage.** A crash between a stage finishing and its checkpoint re-runs that stage. Use
@@ -54,6 +82,9 @@ measurement kit that is not part of the app.
   (`fakeLanguageModel`) and a stubbed network. The simulated device reports `available`, then fails: stock
   Firebase surfaces the error, Continuum completes via cloud.
 - Cloud error shapes (status codes, retry hints) come from the SDK's own source.
+- Mid-stream failover, offline waiting, stage checkpoints and cross-device takeover are tested against the real SDK
+  or an in-memory server, never against real Gemini Nano. **The Firestore adapter (`continuum/firestore`) compiles
+  but has not run against a real Firestore project.**
 - **Not yet verified:** real Gemini Nano. Real on-device error shapes are unknown, so device errors fall into
   `inference`, which is the safe default. Real-browser IndexedDB and Web Locks are untested.
 - The SDK's Node build never wires up the on-device adapter. Test hybrid mode against the browser build.

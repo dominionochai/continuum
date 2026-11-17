@@ -40,18 +40,21 @@ export const observe = (h: Health, q: Quota) => ({
 });
 
 /**
- * Pick the preferred source if usable, else the other. The device is usable if this task hasn't lost a device
- * attempt and it currently looks healthy; the cloud is usable unless its quota window is open.
- * If neither is usable, throw instead of making an attempt that is bound to fail: the task stays resumable.
+ * Pick the preferred source if usable, else the other, within what the stage `needs`. The device is usable if this
+ * task hasn't lost a device attempt and it looks healthy; the cloud is usable if we are online and its quota window
+ * is closed. If nothing is usable, throw instead of making an attempt that is bound to fail: `reason: 'offline'` makes
+ * the runner wait for the network; anything else surfaces, and the task stays resumable.
  */
-export function policy(h: Health, { quota: q, prefer = 'device' }: { quota?: Quota; prefer?: Source } = {}): Route {
-  return async log => {
+export function policy(h: Health, { quota: q, prefer = 'device', online = () => globalThis.navigator?.onLine !== false }: { quota?: Quota; prefer?: Source; online?: () => boolean } = {}): Route {
+  return async (log, info) => {
     const usable = {
       device: async () => defaultRoute(log) === 'device' && (await h.assess()).status === 'healthy',
-      cloud: async () => !q?.exhausted(),
+      cloud: async () => online() && !q?.exhausted(),
     };
-    for (const s of prefer === 'device' ? (['device', 'cloud'] as const) : (['cloud', 'device'] as const))
-      if (await usable[s]()) return s;
-    throw Object.assign(new Error('device unavailable and cloud quota exhausted'), { name: 'AllRoutesBlocked', until: q?.state().until });
+    const order = (prefer === 'device' ? (['device', 'cloud'] as const) : (['cloud', 'device'] as const)).filter(s => !info?.needs || s === info.needs);
+    for (const s of order) if (await usable[s]()) return s;
+    const cloud = order.includes('cloud');
+    const reason = cloud && !online() ? 'offline' : cloud && q?.exhausted() ? 'quota' : 'device';
+    throw Object.assign(new Error(`no usable source (${reason})`), { name: 'AllRoutesBlocked', reason, until: q?.state().until });
   };
 }
