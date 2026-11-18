@@ -4,9 +4,9 @@ import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { idbStore } from '../src/index.js';
 
-const page = readFileSync('demo/index.html', 'utf8').replace(/<script[\s\S]*?<\/script>/g, '');
+const page = readFileSync('demo/compare.html', 'utf8').replace(/<script[\s\S]*?<\/script>/g, '');
 const el = (id: string) => document.getElementById(id)!;
-const load = async () => { vi.resetModules(); document.body.innerHTML = page; await import('../demo/main.js'); };
+const load = async () => { vi.resetModules(); document.body.innerHTML = page; await import('../demo/compare.js'); };
 
 beforeEach(() => localStorage.clear());
 afterEach(() => delete (globalThis as any).LanguageModel); // each test decides for itself whether the device is simulated

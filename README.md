@@ -91,10 +91,18 @@ const tasks = runner(store, stages, { lock, ... });
 
 ## Demo
 
-`npm run demo` serves a two-column page (Firebase alone vs Continuum). It simulates the device unless Chrome
-exposes a real `LanguageModel`, and says so in a banner. Add `?sim` to force simulation. On a real device, tick "Force a real device failure": it sends a prompt
-larger than the model's input quota, so stock Firebase fails on real Nano without any simulation. For real cloud calls
-set `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_PROJECT_ID` and `VITE_FIREBASE_APP_ID`.
+`npm run demo` serves **Digest** at `/`: paste long text and get a summary. It reads sections on the device (with
+a cursor saved inside the stage), streams the summary (continued on the cloud if the device dies partway), and
+polishes the wording on the cloud (a cloud-only stage: offline, it waits and finishes by itself). Close the page
+mid-task and it picks up where it stopped. `/compare.html` runs stock Firebase and Continuum side by side.
+
+Both pages simulate the device unless Chrome exposes a real `LanguageModel`, and say so in a banner. Add `?sim`
+to force simulation. For real cloud calls set `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_PROJECT_ID` and
+`VITE_FIREBASE_APP_ID`. Firebase AI Logic requires App Check: set `VITE_APPCHECK_DEBUG=1` for local development
+(the SDK prints a token to register in the console) or `VITE_APPCHECK_SITE_KEY` for a reCAPTCHA Enterprise key.
+The App Check wiring has not been run against a real project. On a real device, tick "Force a real device
+failure" on the compare page: it sends a prompt larger than the model's input quota, so stock Firebase fails on
+real Nano without any simulation.
 
 ## Benchmark
 

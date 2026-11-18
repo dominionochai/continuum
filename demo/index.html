@@ -1,40 +1,60 @@
 <!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Continuum demo</title>
+<title>Digest</title>
 <style>
-  :root { color-scheme: light dark; }
-  body { font: 15px/1.5 system-ui, sans-serif; max-width: 960px; margin: 0 auto; padding: 24px; }
-  #mode { border: 2px solid currentColor; padding: 8px 12px; font-weight: 600; }
-  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
-  @media (max-width: 700px) { .cols { grid-template-columns: 1fr; } }
-  section { border: 1px solid currentColor; padding: 12px; }
-  h2 { font-size: 15px; margin: 0 0 8px; }
-  pre { background: rgb(128 128 128 / .15); padding: 8px; min-height: 6em; white-space: pre-wrap; margin: 8px 0 0; font-size: 13px; }
-  button, select { font: inherit; padding: 6px 12px; }
-  label { margin-left: 12px; }
+  :root { color-scheme: light dark; --line: color-mix(in srgb, CanvasText 18%, transparent); --soft: color-mix(in srgb, CanvasText 6%, transparent); --accent: #0b6e4f; }
+  * { box-sizing: border-box; }
+  body { font: 16px/1.55 system-ui, -apple-system, 'Segoe UI', sans-serif; max-width: 680px; margin: 0 auto; padding: 40px 20px 72px; }
+  h1 { font-size: 30px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.01em; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; margin: 28px 0 8px; opacity: .65; }
+  .lede { margin: 0 0 20px; opacity: .75; }
+  #mode { margin: 0 0 16px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; background: var(--soft); }
+  #chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 20px; }
+  #chips span { border: 1px solid var(--line); border-radius: 999px; padding: 2px 12px; font-size: 13px; }
+  textarea { width: 100%; min-height: 150px; padding: 12px; font: inherit; color: inherit; background: transparent; border: 1px solid var(--line); border-radius: 8px; resize: vertical; }
+  .actions { display: flex; gap: 10px; margin: 12px 0 0; }
+  button { font: inherit; padding: 8px 18px; color: inherit; background: transparent; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+  button.primary { color: #fff; background: var(--accent); border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  #steps { list-style: none; margin: 0; padding: 0; }
+  #steps li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  #steps .state { opacity: .7; font-size: 14px; text-align: right; }
+  .text { margin: 0; white-space: pre-wrap; min-height: 1.55em; }
+  .note { font-size: 14px; opacity: .7; margin: 6px 0 0; }
+  details { margin-top: 36px; border-top: 1px solid var(--line); padding-top: 12px; }
+  summary { cursor: pointer; font-size: 14px; opacity: .8; }
+  pre { margin: 10px 0; padding: 10px; font-size: 13px; white-space: pre-wrap; background: var(--soft); border-radius: 8px; min-height: 3em; }
+  .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; font-size: 14px; margin: 10px 0; }
+  a { color: var(--accent); }
+  @media (prefers-color-scheme: dark) { :root { --accent: #3fb68b; } button.primary { color: #04130d; } }
 </style>
+<h1>Digest</h1>
+<p class="lede">Summarize long text. It runs on your device when it can and in the cloud when it must. If the page closes or the network drops, it picks up where it left off.</p>
 <p id="mode"></p>
-<p id="controls" hidden>Simulated device: <select id="device"><option>throw</option><option>ok</option><option>hang</option></select></p>
-<p id="force-wrap" hidden><label><input type="checkbox" id="force"> Force a real device failure: send a prompt larger than the model's input quota</label></p>
-<div class="cols">
-  <section>
-    <h2>Firebase alone (PREFER_ON_DEVICE)</h2>
-    <button id="run-stock">Run</button>
-    <pre id="stock-out"></pre>
-  </section>
-  <section>
-    <h2>With Continuum</h2>
-    <button id="run-cont">Run</button>
-    <label><input type="checkbox" id="slow"> pause 3s mid-task (reload the page now)</label>
-    <pre id="cont-out"></pre>
-    <pre id="trace"></pre>
-    <p id="status"></p>
-  </section>
+<div id="chips"></div>
+
+<label for="doc"><h2>Text to summarize</h2></label>
+<textarea id="doc" placeholder="Paste something long, or use the sample."></textarea>
+<div class="actions"><button id="go" class="primary">Summarize</button><button id="sample">Use a sample</button></div>
+
+<div id="out" hidden>
+  <h2>Progress</h2>
+  <ol id="steps"></ol>
+  <h2>Summary</h2>
+  <p class="text" id="summary"></p>
+  <p class="note" id="summary-note"></p>
+  <h2>Polished version</h2>
+  <p class="text" id="polished"></p>
 </div>
-<section style="margin-top:16px">
-  <h2>Benchmark: stock Firebase vs Continuum</h2>
-  <button id="run-bench">Run benchmark (10 runs)</button>
-  <pre id="bench-out"></pre>
-</section>
-<script type="module" src="./main.ts"></script>
+
+<details>
+  <summary>Under the hood</summary>
+  <pre id="trace"></pre>
+  <div class="row">
+    <label><input type="checkbox" id="offline"> Pretend to be offline</label>
+    <span id="sim-controls" hidden>Simulated device: <select id="device"><option>ok</option><option>die-midstream</option><option>throw</option><option>hang</option></select></span>
+  </div>
+  <p class="note"><a href="compare.html">Compare with stock Firebase</a>, side by side.</p>
+</details>
+<script type="module" src="./app.ts"></script>
