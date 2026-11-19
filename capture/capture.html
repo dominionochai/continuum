@@ -150,6 +150,18 @@ async function run() {
     F.useAfterDestroy = await attempt('useAfterDestroy', async () => { const s = await LM.create(opts); s.destroy(); return s.prompt('hi'); });
     F.badTemperature = await attempt('badTemperature', async () => { (await LM.create({ ...opts, temperature: 99, topK: 99999 })).destroy?.(); });
     F.unsupportedLanguage = await attempt('unsupportedLanguage', async () => { (await LM.create({ expectedInputs: [{ type: 'text', languages: ['xx'] }] })).destroy?.(); });
+    // Does the model die partway through its answer when the answer outgrows the context window? Two prompt sizes.
+    for (const [name, share] of [['overflowSmall', 0.4], ['overflowLarge', 0.7]])
+      F[name] = await attempt(name, withSession(async (s) => {
+        const window = s.contextWindow ?? s.inputQuota;
+        if (!window) return 'no context window reported';
+        const out = { share, chunks: 0, chars: 0 };
+        try {
+          for await (const c of s.promptStreaming('word '.repeat(Math.floor(window * share)) + '\n\nNow write a very long story about the sea, at least 2000 words.')) { out.chunks++; out.chars += String(c).length; }
+          out.finished = true;
+        } catch (e) { out.error = shape(e); }
+        return out;
+      }), 180000);
     F.parallel = await attempt('parallel', withSession((s) => Promise.allSettled([1, 2, 3].map(() => s.prompt('Reply with the single word: ok'))).then((r) => r.map((x) => x.status === 'fulfilled' ? 'ok' : shape(x.reason)))));
   } catch (e) {
     R.kitError = shape(e); log('Kit error: ' + e?.message);

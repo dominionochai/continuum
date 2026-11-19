@@ -21,6 +21,9 @@ export function analyze(r, classify) {
     if (!x.ok) {
       const kind = classify(x.error, 'device');
       L.push(`  ${label}: ${x.error.name} [${x.error.ctor}] -> ${kind}${kind === 'inference' ? '  (unmapped: add a rule or accept)' : ''}`);
+    } else if (x.value?.chunks !== undefined) {
+      const v = x.value;
+      L.push(`  ${label}: ${v.finished ? `finished (${v.chunks} chunks, ${v.chars} chars)` : `DIED MID-GENERATION after ${v.chunks} chunks: ${v.error?.name} [${v.error?.ctor}] -> ${classify(v.error, 'device')}`}`);
     } else if (Array.isArray(x.value) && x.value.some((v) => v !== 'ok')) {
       L.push(`  ${label}: partial, ${x.value.map((v) => (v === 'ok' ? 'ok' : v.name)).join(', ')}`);
     } else L.push(`  ${label}: no error`);

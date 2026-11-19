@@ -23,6 +23,14 @@ function fakeNano(state: string, opts: { events?: number[] } = {}) {
       const s = {
         inputQuota: 8000,
         inputUsage: 0,
+        contextWindow: 8000,
+        promptStreaming: (text: string) => new ReadableStream<string>({
+          async start(c) {
+            c.enqueue('a'); c.enqueue('b');
+            if (text.length > 20_000) { await new Promise(r => setTimeout(r, 5)); return c.error(new DOMException('context overflow', 'QuotaExceededError')); }
+            c.enqueue('c'); c.close();
+          },
+        }),
         prompt: async (text: string, { signal }: { signal?: AbortSignal } = {}) => {
           if (destroyed.has(s)) throw new DOMException('session destroyed', 'InvalidStateError');
           if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
@@ -62,13 +70,15 @@ it('records real error shapes from every forced failure, and finds no gap on a h
   const r = await runKit(fakeNano('available'));
   expect(r.availability.bare.value).toBe('available');
   expect(r.baseline.summary).toMatchObject({ ok: 8, failed: 0 });
-  expect(r.baseline.session).toEqual({ inputQuota: 8000, inputUsage: 0 });
+  expect(r.baseline.session).toEqual({ inputQuota: 8000, inputUsage: 0, contextWindow: 8000 });
   expect(r.probe.every((p: any) => p.ok)).toBe(true);
   const name = (k: string) => r.forced[k].error?.name;
   expect([name('oversizedPrompt'), name('abortBefore'), name('abortMidFlight'), name('useAfterDestroy'), name('unsupportedLanguage'), name('badTemperature')])
     .toEqual(['QuotaExceededError', 'AbortError', 'AbortError', 'InvalidStateError', 'NotSupportedError', 'RangeError']);
   expect(r.forced.oversizedPrompt.error).toMatchObject({ domException: true, ctor: 'DOMException' });
   expect(r.forced.parallel.value).toEqual(['ok', 'ok', 'ok']);
+  expect(r.forced.overflowSmall.value).toMatchObject({ finished: true, chunks: 3 });
+  expect(r.forced.overflowLarge.value).toMatchObject({ chunks: 2, error: { name: 'QuotaExceededError' } }); // died partway, and the kit saw how far it got
   expect(r.availableButFailed).toBe(false);
 });
 

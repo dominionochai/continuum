@@ -11,13 +11,15 @@ it('summarizes a report and shows how each real device error is classified', () 
     baseline: { summary: { ok: 7, failed: 1, firstMs: 900, medianMs: 120 }, session: { inputQuota: 9216 } },
     probeMedianMs: 340,
     availableButFailed: true,
-    forced: { oversizedPrompt: bad('QuotaExceededError'), unsupportedLanguage: bad('NotSupportedError'), parallel: { ok: true, value: ['ok', { name: 'AbortError' }] } },
+    forced: { oversizedPrompt: bad('QuotaExceededError'), unsupportedLanguage: bad('NotSupportedError'), parallel: { ok: true, value: ['ok', { name: 'AbortError' }] },
+      overflowLarge: { ok: true, value: { share: 0.7, chunks: 4, chars: 120, error: { name: 'QuotaExceededError', ctor: 'DOMException' } } } },
   }, classify);
   expect(text).toContain('Reported available, then failed: YES');
   expect(text).toContain('session input quota 9216');
   expect(text).toContain('oversizedPrompt: QuotaExceededError [DOMException] -> quota');
   expect(text).toContain('unsupportedLanguage: NotSupportedError [DOMException] -> inference  (unmapped');
   expect(text).toContain('parallel: partial, ok, AbortError');
+  expect(text).toContain('overflowLarge: DIED MID-GENERATION after 4 chunks: QuotaExceededError [DOMException] -> quota');
 });
 
 it('copes with a report from a machine that never got far', () => {
