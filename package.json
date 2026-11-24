@@ -39,6 +39,7 @@
     "@firebase/ai": "^3.1.0",
     "@firebase/app": "^0.16.2",
     "@firebase/app-check": "^0.13.1",
+    "@firebase/auth": "^1.13.6",
     "@firebase/firestore": "^4.17.2",
     "@types/node": "^26.6.6",
     "fake-indexeddb": "^6.2.8",

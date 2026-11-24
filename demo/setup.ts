@@ -1,7 +1,7 @@
 import { getAI, GoogleAIBackend } from '@firebase/ai';
 import { initializeApp } from '@firebase/app';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from '@firebase/app-check';
-import { fakeLanguageModel, health, idbStore, observe, policy, quota, runner, type Sim, type Stage } from '../src/index.js';
+import { fakeLanguageModel, health, idbStore, observe, policy, quota, runner, sync, type Remote, type Sim, type Stage } from '../src/index.js';
 import { firebaseGenerate, firebaseWarm } from '../src/firebase.js';
 
 const env = (import.meta as any).env ?? {};
@@ -38,6 +38,30 @@ export const net = {
 export const gen = firebaseGenerate(ai, { deviceTimeoutMs: 20_000 });
 export const h = health((window as any).LanguageModel, { probe: () => gen('device', 'Reply with: ok', { timeoutMs: 5000 }), download: firebaseWarm(ai) });
 export const q = quota();
-export const store = idbStore('continuum-demo');
+const local = idbStore('continuum-demo');
+
+/**
+ * Cross-device resume, off unless VITE_SYNC is set (and never in simulation). Needs Anonymous sign-in enabled in
+ * Firebase Auth and the rules in docs/firestore.rules. Not yet run against a real project.
+ */
+export const syncOn = !simulated && !!env.VITE_SYNC;
+let loaded: Promise<Remote> | undefined;
+/** Firestore and Auth are only downloaded, and the user only signed in, when a task first touches the remote. */
+const remote = () =>
+  (loaded ??= Promise.all([import('@firebase/auth'), import('@firebase/firestore'), import('../src/firestore.js')]).then(
+    async ([{ getAuth, signInAnonymously }, { getFirestore }, { firestoreRemote }]) => {
+      await signInAnonymously(getAuth(app));
+      return firestoreRemote(getFirestore(app));
+    }));
+const lazyRemote: Remote = {
+  get: async id => (await remote()).get(id),
+  put: async t => (await remote()).put(t),
+  acquire: async (...a) => (await remote()).acquire(...a),
+  release: async (...a) => (await remote()).release(...a),
+};
+const deviceId = localStorage.getItem('device-id') ?? (localStorage.setItem('device-id', crypto.randomUUID()), localStorage.getItem('device-id')!);
+const synced = syncOn ? sync(local, lazyRemote, deviceId) : undefined;
+
+export const store = synced?.store ?? local;
 export const tasks = <I>(stages: Stage<I>[]) =>
-  runner(store, stages, { route: policy(h, { quota: q, online: net.online }), network: net, ...observe(h, q) });
+  runner(store, stages, { route: policy(h, { quota: q, online: net.online }), network: net, lock: synced?.lock, ...observe(h, q) });

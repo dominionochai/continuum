@@ -1,6 +1,6 @@
 import { doneOf, format, type Sim } from '../src/index.js';
 import { chunks, digest, SAMPLE, type Part } from './pipeline.js';
-import { gen, h, net, q, sim, simulated, store, tasks } from './setup.js';
+import { gen, h, net, q, sim, simulated, store, syncOn, tasks } from './setup.js';
 
 const $ = (id: string) => document.getElementById(id)!;
 const run = tasks(digest(gen));
@@ -62,14 +62,21 @@ async function go(id: string, input?: string) {
   }
 }
 
+/** A link to this task: another device opens it, takes over the lease, and carries on. */
+$('share').onclick = () => navigator.clipboard?.writeText(`${location.origin}${location.pathname}?task=${localStorage.getItem('digest-task')}`);
+
 $('go').onclick = () => {
   const text = ($('doc') as HTMLTextAreaElement).value.trim();
   if (!text) return;
   const id = crypto.randomUUID();
   localStorage.setItem('digest-task', id);
+  $('share').hidden = !syncOn;
   void go(id, text);
 };
 
 // A reload or a closed tab leaves an unfinished task behind: pick it up where it stopped.
+const shared = new URLSearchParams(location.search).get('task');
+if (shared && syncOn) localStorage.setItem('digest-task', shared);
 const pending = localStorage.getItem('digest-task');
+$('share').hidden = !(syncOn && pending);
 if (pending) void go(pending);

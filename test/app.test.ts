@@ -19,6 +19,7 @@ it('says it is simulated, and summarizes the sample end to end', async () => {
   expect(el('steps').textContent).toContain('Reading sections (3 of 3)');
   expect(el('summary').textContent).toBe('device answer');
   expect(el('trace').textContent).toContain('polish [cloud] done');
+  expect(el('share').hidden).toBe(true); // cross-device resume is off unless configured
 });
 
 it('offline, the cloud-only step waits, the summary is already usable, and it finishes by itself when back online', async () => {

@@ -26,6 +26,9 @@ All inference goes through Firebase AI Logic, including Continuum's health probe
 (`initializeDeviceModel`). The only code that calls Chrome's `LanguageModel` directly is `capture/`, a standalone
 measurement kit that is not part of the app.
 
+Install the `firebase` package alongside Continuum (Google's types for `@firebase/ai` need a package it does not
+pull in on its own).
+
 ## What each part does
 
 - **`runner`**: stages are checkpointed to IndexedDB. Finished stages are never re-run.
@@ -100,7 +103,11 @@ Both pages simulate the device unless Chrome exposes a real `LanguageModel`, and
 to force simulation. For real cloud calls set `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_PROJECT_ID` and
 `VITE_FIREBASE_APP_ID`. Firebase AI Logic requires App Check: set `VITE_APPCHECK_DEBUG=1` for local development
 (the SDK prints a token to register in the console) or `VITE_APPCHECK_SITE_KEY` for a reCAPTCHA Enterprise key.
-The App Check wiring has not been run against a real project. On a real device, tick "Force a real device
+The App Check wiring has not been run against a real project.
+
+Cross-device resume in Digest is off unless `VITE_SYNC=1` is set: it needs Anonymous sign-in enabled in Firebase
+Auth and `docs/firestore.rules` deployed. It then shows "Copy a link to continue on another device". It has not
+been run against a real project. On a real device, tick "Force a real device
 failure" on the compare page: it sends a prompt larger than the model's input quota, so stock Firebase fails on
 real Nano without any simulation.
 
