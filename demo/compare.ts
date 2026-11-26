@@ -1,21 +1,36 @@
 import { getGenerativeModel, InferenceMode } from '@firebase/ai';
 import { format, type Sim } from '../src/index.js';
 import { bench, formatBench } from '../bench/bench.js';
-import { ai, gen, h, q, sim, simulated, store, tasks } from './setup.js';
+import { ai, banner, deviceSimulated, gen, h, noDeviceApi, q, sim, simulated, store, tasks } from './setup.js';
 
 const $ = (id: string) => document.getElementById(id)!;
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 const out = (id: string, text: string) => ($(id).textContent = text);
 const DOC = 'The meeting moved to Thursday. Budget is approved. Ana owns the launch.';
 
-if (simulated) {
+if (deviceSimulated) {
   sim.prompt = 'throw'; // this page is about a device that reports available and then fails
   $('controls').hidden = false;
   $('device').onchange = e => (sim.prompt = (e.target as HTMLSelectElement).value as Sim['prompt']);
-} else $('force-wrap').hidden = false;
-$('mode').textContent = simulated
-  ? 'SIMULATED: fake on-device model and stubbed network. This is not a Gemini Nano run.'
-  : 'Real on-device model (Chrome LanguageModel).';
+} else if (!noDeviceApi) $('force-wrap').hidden = false;
+$('mode').textContent = banner;
+
+// Without a Prompt API, ONLY_ON_DEVICE silently uses the cloud. The adapter refuses without sending anything.
+if (noDeviceApi) {
+  $('leak').hidden = false;
+  $('run-leak-stock').onclick = async () => {
+    out('leak-out', 'running...');
+    try {
+      const { response } = await getGenerativeModel(ai, { mode: InferenceMode.ONLY_ON_DEVICE }).generateContent('Say hello.');
+      out('leak-out', `OK, served by ${response.inferenceSource}${response.inferenceSource === 'in_cloud' ? '\nThe prompt left this device, although on-device only was requested.' : ''}`);
+    } catch (e: any) { out('leak-out', `ERROR\n${e.message}`); }
+  };
+  $('run-leak-cont').onclick = async () => {
+    out('leak-out', 'running...');
+    try { await gen('device', 'Say hello.'); out('leak-out', 'OK'); }
+    catch (e: any) { out('leak-out', `${e.name}: ${e.message}\nNothing was sent.`); }
+  };
+}
 
 // With "force" on, the document is bigger than the on-device input quota: a real failure, no simulation.
 // It stays small for the cloud (tens of thousands of tokens).

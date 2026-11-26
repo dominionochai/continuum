@@ -1,15 +1,13 @@
 import { doneOf, format, type Sim } from '../src/index.js';
 import { chunks, digest, SAMPLE, type Part } from './pipeline.js';
-import { gen, h, net, q, sim, simulated, store, syncOn, tasks } from './setup.js';
+import { banner, deviceSimulated, gen, h, net, q, sim, store, syncOn, tasks } from './setup.js';
 
 const $ = (id: string) => document.getElementById(id)!;
 const run = tasks(digest(gen));
 const where = (via: string) => (via === 'on_device' ? 'on device' : 'in cloud');
 
-$('mode').textContent = simulated
-  ? 'SIMULATED: fake on-device model and stubbed network. This is not a Gemini Nano run.'
-  : 'Running on this device with Chrome\'s built-in model, with the cloud as backup.';
-if (simulated) {
+$('mode').textContent = banner;
+if (deviceSimulated) {
   $('sim-controls').hidden = false;
   $('device').onchange = e => (sim.prompt = (e.target as HTMLSelectElement).value as Sim['prompt']);
 }

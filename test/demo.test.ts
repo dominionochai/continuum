@@ -77,3 +77,25 @@ it('runs the benchmark from the page and says whether it was simulated', async (
   el('run-bench').click();
   await vi.waitFor(() => expect(el('bench-out').textContent).toMatch(/^SIMULATED[\s\S]*stock Firebase:[\s\S]*Continuum:/), { timeout: 4500 });
 });
+
+it('no device API but a real Firebase project: runs on the cloud, and shows that ONLY_ON_DEVICE silently leaves the device', async () => {
+  (globalThis as any).__CONTINUUM_ENV__ = { VITE_FIREBASE_PROJECT_ID: 'p' };
+  let requests = 0;
+  globalThis.fetch = async () => (
+    requests++,
+    new Response(JSON.stringify({ candidates: [{ index: 0, finishReason: 'STOP', content: { role: 'model', parts: [{ text: 'cloud answer' }] } }] }))
+  );
+  try {
+    await load();
+    expect(el('mode').textContent).toMatch(/^No on-device model/);
+    expect(el('leak').hidden).toBe(false);
+
+    el('run-leak-cont').click();
+    await vi.waitFor(() => expect(el('leak-out').textContent).toMatch(/^DeviceUnavailable[\s\S]*Nothing was sent/));
+    expect(requests).toBe(0);
+
+    el('run-leak-stock').click();
+    await vi.waitFor(() => expect(el('leak-out').textContent).toMatch(/served by in_cloud[\s\S]*left this device/));
+    expect(requests).toBe(1);
+  } finally { delete (globalThis as any).__CONTINUUM_ENV__; }
+});

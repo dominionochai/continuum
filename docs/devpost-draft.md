@@ -6,7 +6,7 @@ source in this repo; the source is named after it.
 ## Private checklist against the rules
 - Public repo with the Apache-2.0 license visible in the About box: [make the repo public]
 - Hosted project URL: [deploy]
-- Video, 3 minutes or less, YouTube, public, showing it working on real Chrome: [record]
+- Video, 3 minutes or less, YouTube, public, showing it working in Chrome: [record; shot list in docs/submission-plan.md]
 - Firebase AI Logic used at runtime, imported and called: `src/firebase.ts`
 - App Check: wired in `demo/setup.ts`; [verify against the real project]
 - Text description (below)
@@ -43,11 +43,13 @@ All inference goes through it: `getGenerativeModel` with `ONLY_ON_DEVICE` or `ON
 `initializeDeviceModel` for the download, and App Check. [Firestore and Auth for cross-device resume: only if built
 and verified.]
 
-## What we measured
-[On a real device, N runs: stock `PREFER_ON_DEVICE` completed X of N; Continuum completed Y of N.]
-[Real error names the device threw, and how Continuum classified them.]
-[Whether the real model dies mid-generation when output overflows its context.]
-Do not publish simulated numbers as measurements. The benchmark labels itself.
+## What is verified, and what is not
+- Verified against the real `@firebase/ai` 3.1.0: the four SDK behaviors above (tests in `test/`), with the real
+  cloud when configured.
+- Real cloud, real browser: reload resume, offline waiting, cross-device resume [once verified against the project].
+- **Not verified on a real on-device model.** The device is simulated, and the app says so in a banner whenever it
+  is. We have no measurements from Gemini Nano. Real on-device error shapes are unknown, so unknown device errors
+  are treated as "inference failed": not retried, and the work moves to the cloud.
 
 ## Challenges
 - Finding the SDK behaviors above, and proving each against the real SDK before relying on it.
@@ -56,7 +58,7 @@ Do not publish simulated numbers as measurements. The benchmark labels itself.
 - Testing honestly without a device: a simulated device is labeled as one everywhere.
 
 ## What we learned
-[Fill in after the real run.]
+The SDK's Node build never wires up the on-device adapter. A simulated device is only honest if it is labeled.
 
 ## What's next
 [Android and iOS ports; filing the SDK findings upstream once confirmed on real hardware.]

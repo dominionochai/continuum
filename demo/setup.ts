@@ -4,14 +4,28 @@ import { initializeAppCheck, ReCaptchaEnterpriseProvider } from '@firebase/app-c
 import { fakeLanguageModel, health, idbStore, observe, policy, quota, runner, sync, type Remote, type Sim, type Stage } from '../src/index.js';
 import { firebaseGenerate, firebaseWarm } from '../src/firebase.js';
 
-const env = (import.meta as any).env ?? {};
+// Build-time VITE_* values, which a global can override at runtime (and tests use, since Vite fixes import.meta.env when it builds).
+const env = { ...(import.meta as any).env, ...(globalThis as any).__CONTINUUM_ENV__ };
 
-// Simulate only when there is no real Prompt API, or when asked (?sim).
-export const simulated = new URLSearchParams(location.search).has('sim') || !('LanguageModel' in window);
+const hasConfig = !!env.VITE_FIREBASE_PROJECT_ID;
+/** True when this browser has no Prompt API at all (checked before any stand-in is installed). */
+export const noDeviceApi = !('LanguageModel' in window);
+/** The device is simulated on request (?sim), or when there is neither a device nor a Firebase project to test with. */
+export const deviceSimulated = new URLSearchParams(location.search).has('sim') || (noDeviceApi && !hasConfig);
+/** The cloud is stubbed only when no Firebase project is configured. Otherwise every cloud call is real. */
+export const cloudSimulated = !hasConfig;
+export const simulated = deviceSimulated || cloudSimulated;
 export const sim: Sim = { availability: 'available', prompt: 'ok' };
-if (simulated) {
+
+export const banner = deviceSimulated && cloudSimulated ? 'SIMULATED: fake on-device model and stubbed network. This is not a Gemini Nano run.'
+  : deviceSimulated ? 'SIMULATED on-device model. Cloud calls are real (Firebase AI Logic). This is not a Gemini Nano run.'
+  : noDeviceApi ? 'No on-device model in this browser: everything runs on the cloud (Firebase AI Logic).'
+  : cloudSimulated ? 'Real on-device model. The cloud is stubbed because no Firebase project is configured.'
+  : 'Real on-device model (Chrome LanguageModel), with the cloud as backup.';
+
+if (deviceSimulated) (window as any).LanguageModel = fakeLanguageModel(sim);
+if (cloudSimulated) {
   const body = (text: string) => ({ candidates: [{ index: 0, finishReason: 'STOP', content: { role: 'model', parts: [{ text }] } }] });
-  (window as any).LanguageModel = fakeLanguageModel(sim);
   window.fetch = async url =>
     String(url).includes('streamGenerateContent')
       ? new Response(['cloud ', 'answer'].map(t => `data: ${JSON.stringify(body(t))}\n\n`).join(''))
@@ -21,7 +35,7 @@ if (simulated) {
 const app = initializeApp({ apiKey: env.VITE_FIREBASE_API_KEY ?? 'sim', projectId: env.VITE_FIREBASE_PROJECT_ID ?? 'sim', appId: env.VITE_FIREBASE_APP_ID ?? 'sim' });
 // App Check is required for Firebase AI Logic. Set VITE_APPCHECK_DEBUG for local development (the SDK prints a
 // token to register in the console), or VITE_APPCHECK_SITE_KEY for a reCAPTCHA Enterprise key in production.
-if (!simulated) {
+if (!cloudSimulated) {
   if (env.VITE_APPCHECK_DEBUG) (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
   if (env.VITE_APPCHECK_SITE_KEY || env.VITE_APPCHECK_DEBUG)
     initializeAppCheck(app, { provider: new ReCaptchaEnterpriseProvider(env.VITE_APPCHECK_SITE_KEY ?? 'debug'), isTokenAutoRefreshEnabled: true });
@@ -44,7 +58,7 @@ const local = idbStore('continuum-demo');
  * Cross-device resume, off unless VITE_SYNC is set (and never in simulation). Needs Anonymous sign-in enabled in
  * Firebase Auth and the rules in docs/firestore.rules. Not yet run against a real project.
  */
-export const syncOn = !simulated && !!env.VITE_SYNC;
+export const syncOn = !cloudSimulated && !!env.VITE_SYNC;
 let loaded: Promise<Remote> | undefined;
 /** Firestore and Auth are only downloaded, and the user only signed in, when a task first touches the remote. */
 const remote = () =>
