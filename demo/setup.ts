@@ -20,8 +20,8 @@ export const sim: Sim = { availability: 'available', prompt: 'ok' };
 export const banner = deviceSimulated && cloudSimulated ? 'SIMULATED: fake on-device model and stubbed network. This is not a Gemini Nano run.'
   : deviceSimulated ? 'SIMULATED on-device model. Cloud calls are real (Firebase AI Logic). This is not a Gemini Nano run.'
   : noDeviceApi ? 'No on-device model in this browser: everything runs on the cloud (Firebase AI Logic).'
-  : cloudSimulated ? 'Real on-device model. The cloud is stubbed because no Firebase project is configured.'
-  : 'Real on-device model (Chrome LanguageModel), with the cloud as backup.';
+  : cloudSimulated ? 'On-device model API present. The cloud is stubbed because no Firebase project is configured.'
+  : "Using Chrome's built-in model when this device has one, with the cloud as backup.";
 
 if (deviceSimulated) (window as any).LanguageModel = fakeLanguageModel(sim);
 if (cloudSimulated) {

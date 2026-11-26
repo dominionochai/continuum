@@ -25,16 +25,20 @@ device only, and must be described that way.
 
 Not needed for the hackathon: publishing to npm, a real-device run, a Firebase CLI login.
 
-## Video, 3 minutes or less (every beat is real unless marked)
-1. Problem, 20s: say the three SDK behaviors in one breath (they are verified in the SDK source).
-2. The leak, 30s, real: open the compare page in a browser with no Prompt API (Firefox or Safari). Click stock
-   `ONLY_ON_DEVICE`: "served by in_cloud, the prompt left this device". Click Continuum: it refuses and sends nothing.
-3. Digest, 40s, real cloud: summarize the sample. Show the trace.
-4. Reload mid-task, 30s, real: start a summary, reload, it resumes without redoing the finished sections.
-5. Offline, 30s, real: tick "Pretend to be offline". The polish step waits, the summary is already usable. Untick.
-6. Another device, 30s, real (needs steps 1-5 above and `VITE_SYNC=1`): copy the link, open it on a phone,
-   it carries on.
-7. Close, 10s: repo, license, link. If you show the simulated device (failover), say "simulated" out loud.
+## Video, 3 minutes or less
+Real = real browser and real cloud. Simulated = the device is a stand-in (`?sim`); say "simulated" out loud.
+1. Problem, 20s: the three SDK behaviors in one breath (verified in the SDK source).
+2. The leak, 30s, real: compare page in Firefox or Safari (no Prompt API). Stock `ONLY_ON_DEVICE`: "served by
+   in_cloud, the prompt left this device". Continuum: it refuses and sends nothing.
+3. Digest, 30s, real: Chrome, "Use a sample", "Summarize". Everything runs on the cloud on a machine without a
+   model, and the chips say so.
+4. Reload mid-task, 30s, real: tick "Slow down", summarize, reload after the first section. It resumes.
+5. Failover, 25s, simulated device: add `?sim`, pick "die-midstream", summarize. The summary starts on the device
+   and the cloud finishes it. The page says so.
+6. Offline, 25s, simulated device: with `?sim` and the device on "ok", tick "Pretend to be offline". The summary
+   is ready, polishing waits. Untick: it finishes. (With no working device, offline stops everything: nothing can run.)
+7. Another device, 20s, real (needs steps 1-5 above and `VITE_SYNC=1`): copy the link, open it on a phone.
+8. Close, 10s: repo, license, link.
 
 ## Claims
 You can say: found and reproduced three SDK behaviors; all inference goes through Firebase AI Logic; resumes after

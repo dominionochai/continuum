@@ -60,7 +60,7 @@ it('real mode: an oversized prompt breaks stock Firebase on the device; Continuu
   globalThis.fetch = async () =>
     new Response(JSON.stringify({ candidates: [{ index: 0, finishReason: 'STOP', content: { role: 'model', parts: [{ text: 'cloud answer' }] } }] }));
   await load();
-  expect(el('mode').textContent).toMatch(/^Real/);
+  expect(el('mode').textContent).toMatch(/^On-device model API present/);
   expect(el('force-wrap').hidden).toBe(false);
   (el('force') as HTMLInputElement).checked = true;
 

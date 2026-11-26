@@ -52,3 +52,13 @@ it('after a reload, an unfinished summary is picked up where it stopped', async 
   await vi.waitFor(() => expect(el('polished').textContent).toBe('cloud answer'), { timeout: 4000 });
   expect(el('trace').textContent.match(/sections/g)).toHaveLength(1); // the finished stages were not redone
 });
+
+it('slowed down, a reload in the middle of the sections carries on and still finishes', async () => {
+  await load();
+  (el('slow') as HTMLInputElement).click();
+  await start();
+  await vi.waitFor(() => expect(el('steps').textContent).toContain('Reading sections (1 of 3)'), { timeout: 4000 });
+  await load(); // reload while it is still reading
+  await vi.waitFor(() => expect(el('polished').textContent).toBe('cloud answer'), { timeout: 8000 });
+  expect(el('steps').textContent).toContain('Reading sections (3 of 3)');
+}, 12_000);

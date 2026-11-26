@@ -22,7 +22,7 @@ export const chunks = (text: string, size = 300) => {
  *  - summary: streamed, and continued on the cloud if the device dies partway;
  *  - polish: needs the cloud, so offline it waits and finishes by itself when the network returns.
  */
-export function digest(gen: Gen): Stage<string>[] {
+export function digest(gen: Gen, pause: () => Promise<void> = async () => {}): Stage<string>[] {
   const text = (v: unknown) => (v as { text: string }).text;
   return [
     ['sections', async c => {
@@ -31,6 +31,7 @@ export function digest(gen: Gen): Stage<string>[] {
         const { text, via } = await gen(c.source, `Summarize this section in one sentence:\n\n${piece}`);
         parts.push({ text, via });
         c.save([...parts]);
+        await pause(); // lets a demo slow things down enough to reload mid-task
       }
       return parts;
     }],

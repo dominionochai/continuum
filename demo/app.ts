@@ -3,7 +3,8 @@ import { chunks, digest, SAMPLE, type Part } from './pipeline.js';
 import { banner, deviceSimulated, gen, h, net, q, sim, store, syncOn, tasks } from './setup.js';
 
 const $ = (id: string) => document.getElementById(id)!;
-const run = tasks(digest(gen));
+const slow = () => ($('slow') as HTMLInputElement).checked;
+const run = tasks(digest(gen, () => new Promise(r => setTimeout(r, slow() ? 2000 : 0))));
 const where = (via: string) => (via === 'on_device' ? 'on device' : 'in cloud');
 
 $('mode').textContent = banner;
